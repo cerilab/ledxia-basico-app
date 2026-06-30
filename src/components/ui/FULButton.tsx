@@ -13,8 +13,6 @@ const buttonVariants = cva(
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
-        action:
-          "bg-[var(--brand-accent,#34b233)]/90 text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground))] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
@@ -42,19 +40,33 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
+function FULButton({
+  action,
+  label,
+  color,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: {
+  action: () => void;
+  label: string;
+  color:String;
+}){
   return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
+   <button 
+    type="button"
+    onClick={action}
+    style={{ '--dynamic-bg': color } as React.CSSProperties}
+    className={cn(
+      'relative h-20 w-132 overflow-hidden rounded-xl text-white transition-all',
+      'hover:-translate-y-0.5 active:translate-y-0',
+      'bg-[var(--brand-accent,var(--dynamic-bg))] shadow-[0_12px_28px_-12px_rgba(235,60,92,0.4)]',
+      'hover:bg-[var(--brand-accent,#eb3c5c)]/90',
+      'shadow-[0_8px_22px_-12px_rgba(36,62,99,0.35)] hover:shadow-[0_14px_28px_-12px_rgba(36,62,99,0.45)]'
+  )} 
+>
+  <span className="text-sm font-semibold tracking-wide">{label}</span>
+</button>
+
+  );
 }
 
-export { Button, buttonVariants }
+export {FULButton, buttonVariants}
