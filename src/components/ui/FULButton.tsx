@@ -56,7 +56,7 @@ function FULButton({
     onClick={action}
     style={{ '--dynamic-bg': color } as React.CSSProperties}
     className={cn(
-      'relative h-20 w-132 overflow-hidden rounded-xl text-white transition-all',
+      'relative h-20 w-120 overflow-hidden rounded-xl text-white transition-all',
       'hover:-translate-y-0.5 active:translate-y-0',
       'bg-[var(--brand-accent,var(--dynamic-bg))] shadow-[0_12px_28px_-12px_rgba(235,60,92,0.4)]',
       'hover:bg-[var(--brand-accent,#eb3c5c)]/90',
