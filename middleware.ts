@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Add allowed origins here
-const allowedOrigins = ['https://ledxia.com', 'http://ledxia.com/servicios', 'https://ledxia.com/servicios', 'http://ledxia.com'];
+const allowedOrigins = ['https://ledxia.com', 'http://ledxia.com/servicios', 'https://us-central1-ledxia-c1316.cloudfunctions.net/servicios'];
 
 export function middleware(request: NextRequest) {
   const origin = request.headers.get('origin') ?? '';
