@@ -199,7 +199,6 @@ export function CashierClient() {
 
         <div>
           <div className="flex flex-wrap items-center gap-4">
-            <FULButton action={openFirstPending} label="Cobrar" color="#1c7253" />
             <FULButton label="Facturas" action={() => router.push('facturacion/lista')} color="#0164ac"/>
             <FULButton label="Cerrar Caja" action={() => setCloseDialog(true)} color="#2c4153"/>
           </div>
