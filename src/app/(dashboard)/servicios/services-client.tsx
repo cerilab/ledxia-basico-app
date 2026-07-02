@@ -270,6 +270,9 @@ function ServiceDialog({
               />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="svc-tax">O puedes importar un documento excell</Label>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar

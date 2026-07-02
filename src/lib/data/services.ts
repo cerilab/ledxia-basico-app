@@ -23,6 +23,15 @@ export async function createService(tenantId: string, input: ServiceInput) {
   });
 }
 
+export async function importService(userid: string, data: Record<string, unknown>[]) {
+  return addDoc(servicesCol(userid), {
+    ...data,
+    active: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function updateService(
   tenantId: string,
   id: string,

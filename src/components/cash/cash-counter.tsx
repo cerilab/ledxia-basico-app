@@ -70,16 +70,17 @@ export function CashCounter({
                     "flex h-10 items-center justify-center rounded-md bg-gradient-to-br shadow-inner ring-1 ring-black/10",
                     BILL_GRADIENT[denom],
                   )}
+                  onClick={() => setCount(denom, String(count + 1))}
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-white/80">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-white/80" unselectable="on">
                     RD$
                   </span>
-                  <span className="ml-1 text-base font-bold tracking-tight text-white drop-shadow-sm">
+                  <span className="ml-1 text-base font-bold tracking-tight text-white drop-shadow-sm" unselectable="on">
                     {fmt(denom)}
                   </span>
                 </div>
               ) : (
-                <div className="flex h-10 items-center justify-center">
+                <div className="flex h-10 items-center justify-center"  unselectable="on" onClick={() => setCount(denom, String(count + 1))}>
                   <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 shadow ring-1 ring-amber-600/40">
                     <span className="text-xs font-bold text-amber-950">{denom}</span>
                   </div>

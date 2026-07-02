@@ -2,14 +2,16 @@
 import { Button } from '@base-ui/react';
 import React, { useState, ChangeEvent, useRef } from 'react';
 import { read, utils, WorkBook, WorkSheet } from 'xlsx';
-import {xlsxSavecnfgFn} from '@/lib/firebase/functions';
 import { ReactFormState } from 'react-dom/client';
 import { toast } from 'sonner';
 import { db } from '@/lib/firebase/client';
+import { Plus } from 'lucide-react';
+import { importService } from '@/lib/data/services';
 
 
 
 export function ServicesReader() {
+    const usrid = "your_user_id"; // Replace with actual user ID or get it from context/auth
     const [excelData, setExcelData] = useState<Record<string, unknown>[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     
@@ -52,15 +54,15 @@ export function ServicesReader() {
                 onChange={handleFileUpload}
                 style={{ display: 'none' }} 
             />
-
-            <Button 
-                onClick={handleButtonClick}
-            >
-                Importar Datos 
-            </Button>
+                 
+        <Button
+          onClick={() => {handleButtonClick(); }}
+        >
+          importar Servicio
+        </Button>
 
             {isModalOpen && (
-                <ServicesModal data={excelData} onClose={() => setIsModalOpen(false)} />
+                <ServicesModal data={excelData} onClose={() => setIsModalOpen(false)} userid={usrid} />
             )}
         </div>
     );
@@ -71,7 +73,7 @@ interface ServicesModalProps {
     onClose: () => void;
 }
 
-function ServicesModal({ data, onClose }: ServicesModalProps) {
+function ServicesModal({ data, onClose, userid }: ServicesModalProps & { userid: string }) {
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
 
     return (
@@ -130,7 +132,7 @@ function ServicesModal({ data, onClose }: ServicesModalProps) {
                     
                     {/* Fixed onClick syntax & used Base UI Button */}
                     <button 
-                        onClick={() => sve(data)}
+                        onClick={() => sve(userid, data)}
                         className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
                     >
                         Subir
@@ -141,21 +143,16 @@ function ServicesModal({ data, onClose }: ServicesModalProps) {
     );
 }
 
-async function sve(data: Record<string, unknown>[]) {
-  try {
-    const payload = {
-      configData: {
-        items: data 
-      }
-    };
 
-    const result = await xlsxSavecnfgFn(payload);
-    
-    toast.success("Guardado con éxito");
-    console.log("Server response:", result.data);
-    
-  } catch (error) {
-    console.error("Error uploading data:", error);
-    toast.error("No se pudo guardar la configuración");
+async function sve(userid: string, data: Record<string, unknown>[]) {
+
+    if(!userid) return;
+    //setSaving(true);   
+    try {
+        const result = await importService(userid, data);
+        toast.success("Guardado con éxito");
+    } catch (error) {
+        console.error("Error uploading data:", error);
+        toast.error("No se pudo guardar la configuración");
   }
 }
