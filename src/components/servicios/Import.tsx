@@ -1,15 +1,14 @@
 'use client';
+
 import { Button } from '@base-ui/react';
 import React, { useState, ChangeEvent, useRef } from 'react';
 import { read, utils, WorkBook, WorkSheet } from 'xlsx';
-import { ReactFormState } from 'react-dom/client';
 import { toast } from 'sonner';
-import { db } from '@/lib/firebase/client';
-import { Plus } from 'lucide-react';
 import { importService } from '@/lib/data/services';
+import { useAuth } from '@/lib/auth/context';
 
 export function ServicesReader() {
-    const usrid = "your_user_id"; // Replace with actual user ID or get it from context/auth
+    const { tenantId } = useAuth();
     const [excelData, setExcelData] = useState<Record<string, unknown>[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     
@@ -53,14 +52,16 @@ export function ServicesReader() {
                 style={{ display: 'none' }} 
             />
                  
-        <Button
-          onClick={() => {handleButtonClick(); }}
-        >
-          importar Servicio
-        </Button>
+            <Button onClick={handleButtonClick}>
+                Importar Servicio
+            </Button>
 
             {isModalOpen && (
-                <ServicesModal data={excelData} onClose={() => setIsModalOpen(false)} userid={usrid} />
+                <ServicesModal 
+                    data={excelData} 
+                    onClose={() => setIsModalOpen(false)} 
+                    tenId={tenantId || ''} 
+                />
             )}
         </div>
     );
@@ -69,9 +70,10 @@ export function ServicesReader() {
 interface ServicesModalProps {
     data: Record<string, unknown>[];
     onClose: () => void;
+    tenId: string;
 }
 
-function ServicesModal({ data, onClose, userid }: ServicesModalProps & { userid: string }) {
+function ServicesModal({ data, onClose, tenId }: ServicesModalProps) {
     const headers = data.length > 0 ? Object.keys(data[0]) : [];
 
     return (
@@ -80,7 +82,7 @@ function ServicesModal({ data, onClose, userid }: ServicesModalProps & { userid:
                 
                 {/* Modal Header */}
                 <div className="flex justify-between items-center p-4 border-b">
-                    <h3 className="text-lg font-semibold text-gray-900">preview</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Preview</h3>
                     <button 
                         onClick={onClose}
                         className="text-gray-500 hover:text-gray-700 font-bold text-xl px-2"
@@ -106,7 +108,7 @@ function ServicesModal({ data, onClose, userid }: ServicesModalProps & { userid:
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {data.map((row, rowIndex) => (
-                                    <tr key={String(row.id) || rowIndex} className="hover:bg-gray-50">
+                                    <tr key={String(row.id || rowIndex)} className="hover:bg-gray-50">
                                         {headers.map((header) => (
                                             <td key={header} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 border-b">
                                                 {String(row[header] ?? '')}
@@ -128,9 +130,8 @@ function ServicesModal({ data, onClose, userid }: ServicesModalProps & { userid:
                         Close
                     </button>
                     
-                    {/* Fixed onClick syntax & used Base UI Button */}
                     <button 
-                        onClick={() => sve(userid, data)}
+                        onClick={() => sve(tenId, data)}
                         className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
                     >
                         Subir
@@ -141,15 +142,16 @@ function ServicesModal({ data, onClose, userid }: ServicesModalProps & { userid:
     );
 }
 
-
-async function sve(userid: string, data: Record<string, unknown>[]) {
-
-    if(!userid) return;
+async function sve(tenantId: string, data: Record<string, unknown>[]) {
+    if (!tenantId) {
+        toast.error("Falta el identificador del inquilino (tenantId)");
+        return;
+    }
     try {
-        await importService(userid, data);
+        await importService(tenantId, data);
         toast.success("Guardado con éxito");
     } catch (error) {
         console.error("Error uploading data:", error);
         toast.error("No se pudo guardar la configuración");
-  }
+    }
 }
