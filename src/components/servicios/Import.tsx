@@ -8,8 +8,6 @@ import { db } from '@/lib/firebase/client';
 import { Plus } from 'lucide-react';
 import { importService } from '@/lib/data/services';
 
-
-
 export function ServicesReader() {
     const usrid = "your_user_id"; // Replace with actual user ID or get it from context/auth
     const [excelData, setExcelData] = useState<Record<string, unknown>[]>([]);
@@ -147,9 +145,8 @@ function ServicesModal({ data, onClose, userid }: ServicesModalProps & { userid:
 async function sve(userid: string, data: Record<string, unknown>[]) {
 
     if(!userid) return;
-    //setSaving(true);   
     try {
-        const result = await importService(userid, data);
+        await importService(userid, data);
         toast.success("Guardado con éxito");
     } catch (error) {
         console.error("Error uploading data:", error);
