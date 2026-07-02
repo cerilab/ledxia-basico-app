@@ -25,7 +25,7 @@ export async function createService(tenantId: string, input: ServiceInput) {
 
 export async function importService(userid: string, data: Record<string, unknown>[]) {
   return addDoc(servicesCol(userid), {
-    ...data,
+    items: data,
     active: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
