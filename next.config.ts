@@ -2,41 +2,10 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
 
-  /*  
-  async rewrites() {
-    return {
-      beforeFiles: [
-        // These rewrites are checked after headers/redirects
-        // and before all files including _next/public files which
-        // allows overriding page files
-        {
-          source: '/xlsxSavecnfg',
-          destination: '/facturacion',
-          has: [{ type: 'query', key: 'overrideMe' }],
-        },
-      ],
-      afterFiles: [
-        // These rewrites are checked after pages/public files
-        // are checked but before dynamic routes
-        {
-          source: '/xlsxSavecnfg',
-          destination: '/xlsxSavecnfg/sucess',
-        },
-      ],
-      fallback: [
-        // These rewrites are checked after both pages/public files
-        // and dynamic routes are checked
-        {
-          source: '/xlsxSavecnfg*',
-          destination: `/xlsxSavecnfg/error`,
-        },
-      ],
-    }
-  },
-*/
   async headers() {
     return [
       {
+        crossOrigin: 'anonymous',
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
