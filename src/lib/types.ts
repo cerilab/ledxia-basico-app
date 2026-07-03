@@ -58,12 +58,17 @@ export interface Patient {
 }
 
 export interface Service {
-  id: ID;
-  name: string;
-  code?: string;
-  price: number;
-  taxRate: number; // 0, 16, 18 (ITBIS)
-  active: boolean;
+  Codigo: ID;
+  Examen: string;
+  Seccion: string;
+  tipo_muestra: string;
+  tipo_envase: string;
+  metodo: string;
+  requisito: string;
+  Entregable: string;
+  Precio_privado: number;
+  entregaimagen: boolean;
+  entregaLab: boolean;
 }
 
 export type InvoiceStatus = "pending" | "partial" | "paid" | "cancelled";

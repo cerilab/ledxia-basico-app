@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { onSnapshot, orderBy, query } from "firebase/firestore";
+import { getDocs } from "firebase/firestore";
 import { toast } from "sonner";
 import { Loader2, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
@@ -31,7 +31,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { ServicesReader } from "@/components/servicios/Import";
 
 export function ServicesClient() {
@@ -44,37 +43,92 @@ export function ServicesClient() {
 
   useEffect(() => {
     if (!tenantId) return;
-    const q = query(servicesCol(tenantId), orderBy("name"));
-    return onSnapshot(
-      q,
-      (snap) => {
-        setServices(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Service, "id">) })),
-        );
+
+    setLoading(true);
+    console.log("RUTA DE LA COLECCIÓN:", servicesCol(tenantId).path);
+
+    getDocs(servicesCol(tenantId))
+      .then((querySnapshot) => {
+        const fetchedServices: Service[] = [];
+
+        querySnapshot.forEach((doc) => {
+          console.log(`Documento crudo ID [${doc.id}]:`, doc.data());
+
+          const data = doc.data();
+          if (!data) return;
+
+          // Find where the JSON array or collection lives inside the document
+          const rawPayload = data.services || data.datos || data.items || data;
+
+          // Helper function to map a single JSON object into our Service structure
+          const mapItemToService = (innerData: any, index: number): Service => {
+            const codigo = innerData.CODIGO ?? innerData.codigo ?? `${doc.id}-${index}`;
+            const examen = innerData.EXAMEN ?? innerData.examen ?? innerData.Examen ?? "Examen sin nombre";
+            const seccion = innerData.SECCION ?? innerData.seccion ?? "—";
+            const muestra = innerData.MUESTRA ?? innerData.muestra ?? innerData.tipo_muestra ?? "—";
+            const envase = innerData.ENVASE ?? innerData.envase ?? innerData.tipo_envase ?? "—";
+            const metodo = innerData.METODO ?? innerData.metodo ?? "—";
+            const requisito = innerData.REQUISITO ?? innerData.requisito ?? "—";
+            const entregable = innerData.ENTREGABLE ?? innerData.entregable ?? "—";
+            const precio = innerData.PRECIO_PRIVADO ?? innerData.precio_privado ?? innerData.Precio_privado ?? 0;
+
+            // Handle 1 or 0 binary indicators cleanly
+            const imgDeliv = innerData.ENTREGA_IMAGEN ?? innerData.entrega_imagen ?? innerData.entregaimagen ?? 0;
+            const labDeliv = innerData.ENTREGA_LAB ?? innerData.entrega_lab ?? innerData.entregaLab ?? 0;
+
+            return {
+              Codigo: String(codigo),
+              Examen: String(examen),
+              Seccion: String(seccion),
+              tipo_muestra: String(muestra),
+              tipo_envase: String(envase),
+              metodo: String(metodo),
+              requisito: String(requisito),
+              Entregable: String(entregable),
+              Precio_privado: Number(precio),
+              entregaimagen: Number(imgDeliv) === 1 || imgDeliv === true,
+              entregaLab: Number(labDeliv) === 1 || labDeliv === true,
+            };
+          };
+
+          // If the JSON payload is an array inside the document, loop through it
+          if (Array.isArray(rawPayload)) {
+            rawPayload.forEach((item, index) => {
+              fetchedServices.push(mapItemToService(item, index));
+            });
+          } else if (typeof rawPayload === "object" && rawPayload !== null) {
+            // If it's a map/dictionary container of items instead of a flat array
+            const values = Object.values(rawPayload);
+            if (values.length > 0 && typeof values[0] === "object") {
+              values.forEach((item, index) => {
+                fetchedServices.push(mapItemToService(item, index));
+              });
+            } else {
+              // Standard single fallback document
+              fetchedServices.push(mapItemToService(rawPayload, 0));
+            }
+          }
+        });
+
+        setServices(fetchedServices);
         setLoading(false);
-      },
-      () => setLoading(false),
-    );
+      })
+      .catch((error) => {
+        console.error("Error fetching services:", error);
+        setLoading(false);
+      });
   }, [tenantId]);
 
   const filtered = useMemo(() => {
     const t = term.trim().toLowerCase();
     if (!t) return services;
-    return services.filter(
-      (s) =>
-        s.name.toLowerCase().includes(t) ||
-        (s.code ?? "").toLowerCase().includes(t),
-    );
-  }, [services, term]);
 
-  async function toggleActive(s: Service) {
-    if (!tenantId) return;
-    try {
-      await updateService(tenantId, s.id, { active: !s.active });
-    } catch {
-      toast.error("No se pudo actualizar el servicio");
-    }
-  }
+    return services.filter((s) => {
+      const nameMatch = s.Examen ? s.Examen.toLowerCase().includes(t) : false;
+      const codeMatch = s.Codigo ? s.Codigo.toLowerCase().includes(t) : false;
+      return nameMatch || codeMatch;
+    });
+  }, [services, term]);
 
   return (
     <div className="space-y-6">
@@ -82,21 +136,19 @@ export function ServicesClient() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Catálogo de servicios</h2>
           <p className="text-sm text-muted-foreground">Lista de precios de la clínica.</p>
-        </div>        
+        </div>
       </div>
-      
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4 space-x-4" /> Nuevo Servicio
-        </Button>
 
-      <ServicesReader/>
+      <Button
+        onClick={() => {
+          setEditing(null);
+          setDialogOpen(true);
+        }}
+      >
+        <Plus className="mr-2 h-4 w-4" /> Nuevo Servicio
+      </Button>
 
-        
+      <ServicesReader />
 
       <div className="relative max-w-sm">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -112,39 +164,48 @@ export function ServicesClient() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nombre</TableHead>
               <TableHead>Código</TableHead>
-              <TableHead>Precio</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>Examen</TableHead>
+              <TableHead>Precio Privado</TableHead>
+              <TableHead>Tipo Muestra</TableHead>
+              <TableHead>Tipo Envase</TableHead>
+              <TableHead>Método</TableHead>
+              <TableHead>Requisito</TableHead>
+              <TableHead>Entregable</TableHead>
+              <TableHead>Entrega Imagen</TableHead>
+              <TableHead>Entrega Lab</TableHead>
+              <TableHead>Sección</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center">
+                <TableCell colSpan={12} className="py-10 text-center">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={12} className="py-10 text-center text-muted-foreground">
                   {term ? "Sin resultados." : "Aún no hay servicios."}
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((s) => (
-                <TableRow key={s.id} className={!s.active ? "opacity-50" : ""}>
-                  <TableCell className="font-medium">{s.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.code || "—"}</TableCell>
-                  <TableCell>{formatPrice(s.price)}</TableCell>
-                  <TableCell>{s.taxRate > 0 ? `${s.taxRate}%` : "Exento"}</TableCell>
-                  <TableCell>
-                    <Badge variant={s.active ? "default" : "secondary"}>
-                      {s.active ? "Activo" : "Inactivo"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right space-x-1">
+              filtered.map((s, index) => (
+                <TableRow key={s.Codigo || index}>
+                  <TableCell className="font-medium">{s.Codigo}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.Examen}</TableCell>
+                  <TableCell>{formatPrice(s.Precio_privado)}</TableCell>
+                  <TableCell>{s.tipo_muestra}</TableCell>
+                  <TableCell>{s.tipo_envase}</TableCell>
+                  <TableCell>{s.metodo}</TableCell>
+                  <TableCell>{s.requisito}</TableCell>
+                  <TableCell>{s.Entregable}</TableCell>
+                  <TableCell>{s.entregaimagen ? "Sí" : "No"}</TableCell>
+                  <TableCell>{s.entregaLab ? "Sí" : "No"}</TableCell>
+                  <TableCell>{s.Seccion}</TableCell>
+                  <TableCell className="text-right">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -155,13 +216,6 @@ export function ServicesClient() {
                     >
                       Editar
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleActive(s)}
-                    >
-                      {s.active ? "Desactivar" : "Activar"}
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -171,9 +225,12 @@ export function ServicesClient() {
       </div>
 
       <ServiceDialog
-        key={editing?.id ?? "new"}
+        key={editing?.Codigo ?? "new"}
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(null);
+        }}
         tenantId={tenantId}
         service={editing}
       />
@@ -182,10 +239,17 @@ export function ServicesClient() {
 }
 
 const EMPTY: ServiceInput = {
-  name: "",
-  code: "",
-  price: 0,
-  taxRate: 18,
+  Examen: "",
+  Codigo: "",
+  Precio_privado: 0,
+  Seccion: "",
+  tipo_muestra: "",
+  tipo_envase: "",
+  metodo: "",
+  requisito: "",
+  Entregable: "",
+  entregaimagen: false,
+  entregaLab: false,
 };
 
 function ServiceDialog({
@@ -200,12 +264,30 @@ function ServiceDialog({
   service: Service | null;
 }) {
   const isEdit = !!service;
-  const [form, setForm] = useState<ServiceInput>(
-    service
-      ? { name: service.name, code: service.code ?? "", price: service.price, taxRate: service.taxRate }
-      : EMPTY,
-  );
+  const [form, setForm] = useState<ServiceInput>(EMPTY);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      if (service) {
+        setForm({
+          Examen: service.Examen ?? "",
+          Codigo: service.Codigo ?? "",
+          Precio_privado: service.Precio_privado ?? 0,
+          Seccion: service.Seccion ?? "",
+          tipo_muestra: service.tipo_muestra ?? "",
+          tipo_envase: service.tipo_envase ?? "",
+          metodo: service.metodo ?? "",
+          requisito: service.requisito ?? "",
+          Entregable: service.Entregable ?? "",
+          entregaimagen: !!service.entregaimagen,
+          entregaLab: !!service.entregaLab,
+        });
+      } else {
+        setForm(EMPTY);
+      }
+    }
+  }, [open, service]);
 
   function set<K extends keyof ServiceInput>(key: K, value: ServiceInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -217,7 +299,7 @@ function ServiceDialog({
     setSaving(true);
     try {
       if (isEdit && service) {
-        await updateService(tenantId, service.id, form);
+        await updateService(tenantId, service.Codigo, form);
         toast.success("Servicio actualizado");
       } else {
         await createService(tenantId, form);
@@ -243,16 +325,16 @@ function ServiceDialog({
             <Input
               id="svc-name"
               required
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
+              value={form.Examen}
+              onChange={(e) => set("Examen", e.target.value)}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="svc-code">Código (opcional)</Label>
             <Input
               id="svc-code"
-              value={form.code}
-              onChange={(e) => set("code", e.target.value)}
+              value={form.Codigo}
+              onChange={(e) => set("Codigo", e.target.value)}
               placeholder="LAB-001"
             />
           </div>
@@ -265,13 +347,10 @@ function ServiceDialog({
                 min="0"
                 step="0.01"
                 required
-                value={form.price}
-                onChange={(e) => set("price", parseFloat(e.target.value) || 0)}
+                value={form.Precio_privado || ""}
+                onChange={(e) => set("Precio_privado", parseFloat(e.target.value) || 0)}
               />
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="svc-tax">O puedes importar un documento excell</Label>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

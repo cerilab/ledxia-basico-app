@@ -5,10 +5,11 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { db, functions } from "@/lib/firebase/client";
 import type { Service } from "@/lib/types";
+import { httpsCallable } from "firebase/functions";
 
-export type ServiceInput = Pick<Service, "name" | "code" | "price" | "taxRate">;
+export type ServiceInput = Pick<Service, "Codigo" | "Examen" | "Seccion" | "tipo_muestra" | "tipo_envase" | "metodo" | "requisito" | "Entregable" | "Precio_privado" | "entregaimagen" | "entregaLab">;
 
 export function servicesCol(tenantId: string) {
   return collection(db, "tenants", tenantId, "services");
@@ -17,16 +18,6 @@ export function servicesCol(tenantId: string) {
 export async function createService(tenantId: string, input: ServiceInput) {
   return addDoc(servicesCol(tenantId), {
     ...input,
-    active: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-}
-
-export async function importService(tenantId: string, data: Record<string, unknown>[]) {
-  console.log("Importing service data:", data);
-  return addDoc(servicesCol(tenantId), {
-    items: data,
     active: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -50,4 +41,20 @@ export function formatPrice(amount: number) {
     currency: "DOP",
     minimumFractionDigits: 2,
   }).format(amount);
+}
+
+
+export async function uploadServices(tenantId: string, jsonData: Record<string, any>) {
+  try {
+      return addDoc(servicesCol(tenantId), {
+    ...jsonData,
+    active: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+    
+    console.log(`Successfully uploaded JSON for tenant: ${tenantId}`);
+  } catch (error) {
+    console.error("Error uploading to Firestore:", error);
+  }
 }

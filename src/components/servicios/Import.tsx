@@ -4,7 +4,7 @@ import { Button } from '@base-ui/react';
 import React, { useState, ChangeEvent, useRef } from 'react';
 import { read, utils, WorkBook, WorkSheet } from 'xlsx';
 import { toast } from 'sonner';
-import { importService } from '@/lib/data/services';
+import { uploadServices } from '@/lib/data/services';
 import { useAuth } from '@/lib/auth/context';
 
 export function ServicesReader() {
@@ -148,7 +148,7 @@ async function sve(tenantId: string, data: Record<string, unknown>[]) {
         return;
     }
     try {
-        await importService(tenantId, data);
+        await uploadServices(tenantId, data);
         toast.success("Guardado con éxito");
     } catch (error) {
         console.error("Error uploading data:", error);
