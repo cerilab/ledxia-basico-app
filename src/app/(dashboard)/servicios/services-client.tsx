@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { getDocs } from "firebase/firestore";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import {
   createService,
   formatPrice,
-  servicesCol,
   updateService,
   type ServiceInput,
 } from "@/lib/data/services";
@@ -32,103 +30,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ServicesReader } from "@/components/servicios/Import";
+import useRetrieveServices from "@/components/queries/retrieve";
 
 export function ServicesClient() {
-  const { tenantId } = useAuth();
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [term, setTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
 
-  useEffect(() => {
-    if (!tenantId) return;
-
-    setLoading(true);
-    console.log("RUTA DE LA COLECCIÓN:", servicesCol(tenantId).path);
-
-    getDocs(servicesCol(tenantId))
-      .then((querySnapshot) => {
-        const fetchedServices: Service[] = [];
-
-        querySnapshot.forEach((doc) => {
-          console.log(`Documento crudo ID [${doc.id}]:`, doc.data());
-
-          const data = doc.data();
-          if (!data) return;
-
-          // Find where the JSON array or collection lives inside the document
-          const rawPayload = data.services || data.datos || data.items || data;
-
-          // Helper function to map a single JSON object into our Service structure
-          const mapItemToService = (innerData: any, index: number): Service => {
-            const codigo = innerData.CODIGO ?? innerData.codigo ?? `${doc.id}-${index}`;
-            const examen = innerData.EXAMEN ?? innerData.examen ?? innerData.Examen ?? "Examen sin nombre";
-            const seccion = innerData.SECCION ?? innerData.seccion ?? "—";
-            const muestra = innerData.MUESTRA ?? innerData.muestra ?? innerData.tipo_muestra ?? "—";
-            const envase = innerData.ENVASE ?? innerData.envase ?? innerData.tipo_envase ?? "—";
-            const metodo = innerData.METODO ?? innerData.metodo ?? "—";
-            const requisito = innerData.REQUISITO ?? innerData.requisito ?? "—";
-            const entregable = innerData.ENTREGABLE ?? innerData.entregable ?? "—";
-            const precio = innerData.PRECIO_PRIVADO ?? innerData.precio_privado ?? innerData.Precio_privado ?? 0;
-
-            // Handle 1 or 0 binary indicators cleanly
-            const imgDeliv = innerData.ENTREGA_IMAGEN ?? innerData.entrega_imagen ?? innerData.entregaimagen ?? 0;
-            const labDeliv = innerData.ENTREGA_LAB ?? innerData.entrega_lab ?? innerData.entregaLab ?? 0;
-
-            return {
-              Codigo: String(codigo),
-              Examen: String(examen),
-              Seccion: String(seccion),
-              tipo_muestra: String(muestra),
-              tipo_envase: String(envase),
-              metodo: String(metodo),
-              requisito: String(requisito),
-              Entregable: String(entregable),
-              Precio_privado: Number(precio),
-              entregaimagen: Number(imgDeliv) === 1 || imgDeliv === true,
-              entregaLab: Number(labDeliv) === 1 || labDeliv === true,
-            };
-          };
-
-          // If the JSON payload is an array inside the document, loop through it
-          if (Array.isArray(rawPayload)) {
-            rawPayload.forEach((item, index) => {
-              fetchedServices.push(mapItemToService(item, index));
-            });
-          } else if (typeof rawPayload === "object" && rawPayload !== null) {
-            // If it's a map/dictionary container of items instead of a flat array
-            const values = Object.values(rawPayload);
-            if (values.length > 0 && typeof values[0] === "object") {
-              values.forEach((item, index) => {
-                fetchedServices.push(mapItemToService(item, index));
-              });
-            } else {
-              // Standard single fallback document
-              fetchedServices.push(mapItemToService(rawPayload, 0));
-            }
-          }
-        });
-
-        setServices(fetchedServices);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error fetching services:", error);
-        setLoading(false);
-      });
-  }, [tenantId]);
-
-  const filtered = useMemo(() => {
-    const t = term.trim().toLowerCase();
-    if (!t) return services;
-
-    return services.filter((s) => {
-      const nameMatch = s.Examen ? s.Examen.toLowerCase().includes(t) : false;
-      const codeMatch = s.Codigo ? s.Codigo.toLowerCase().includes(t) : false;
-      return nameMatch || codeMatch;
-    });
-  }, [services, term]);
+  // Core Hooks extracted safely at the function component root body
+  const { tenantId } = useAuth();
+  const { 
+    services, 
+    filteredServices, 
+    loading, 
+    term, 
+    setTerm 
+  } = useRetrieveServices();
 
   return (
     <div className="space-y-6">
@@ -161,67 +77,75 @@ export function ServicesClient() {
       </div>
 
       <div className="rounded-lg border bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Código</TableHead>
-              <TableHead>Examen</TableHead>
-              <TableHead>Precio Privado</TableHead>
-              <TableHead>Tipo Muestra</TableHead>
-              <TableHead>Tipo Envase</TableHead>
-              <TableHead>Método</TableHead>
-              <TableHead>Requisito</TableHead>
-              <TableHead>Entregable</TableHead>
-              <TableHead>Entrega Imagen</TableHead>
-              <TableHead>Entrega Lab</TableHead>
-              <TableHead>Sección</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={12} className="py-10 text-center">
-                  <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
-                </TableCell>
+                <TableHead>Código</TableHead>
+                <TableHead>Examen</TableHead>
+                <TableHead>Precio Privado</TableHead>
+                <TableHead>Tipo Muestra</TableHead>
+                <TableHead>Tipo Envase</TableHead>
+                <TableHead>Método</TableHead>
+                <TableHead>Requisito</TableHead>
+                <TableHead>Entregable</TableHead>
+                <TableHead>Entrega Imagen</TableHead>
+                <TableHead>Entrega Lab</TableHead>
+                <TableHead>Sección</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={12} className="py-10 text-center text-muted-foreground">
-                  {term ? "Sin resultados." : "Aún no hay servicios."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((s, index) => (
-                <TableRow key={s.Codigo || index}>
-                  <TableCell className="font-medium">{s.Codigo}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.Examen}</TableCell>
-                  <TableCell>{formatPrice(s.Precio_privado)}</TableCell>
-                  <TableCell>{s.tipo_muestra}</TableCell>
-                  <TableCell>{s.tipo_envase}</TableCell>
-                  <TableCell>{s.metodo}</TableCell>
-                  <TableCell>{s.requisito}</TableCell>
-                  <TableCell>{s.Entregable}</TableCell>
-                  <TableCell>{s.entregaimagen ? "Sí" : "No"}</TableCell>
-                  <TableCell>{s.entregaLab ? "Sí" : "No"}</TableCell>
-                  <TableCell>{s.Seccion}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditing(s);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      Editar
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={12} className="py-10 text-center">
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : services.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={12} className="py-10 text-center text-muted-foreground">
+                    Aún no hay servicios.
+                  </TableCell>
+                </TableRow>
+              ) : filteredServices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={12} className="py-10 text-center text-muted-foreground">
+                    Sin resultados para "{term}".
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredServices.map((s, index) => (
+                  <TableRow key={s.Codigo || index}>
+                    <TableCell className="font-medium">{s.Codigo}</TableCell>
+                    <TableCell className="text-muted-foreground">{s.Examen}</TableCell>
+                    <TableCell>{formatPrice(s.Precio_privado)}</TableCell>
+                    <TableCell>{s.tipo_muestra}</TableCell>
+                    <TableCell>{s.tipo_envase}</TableCell>
+                    <TableCell>{s.metodo}</TableCell>
+                    <TableCell>{s.requisito}</TableCell>
+                    <TableCell>{s.Entregable}</TableCell>
+                    <TableCell>{s.entregaimagen ? "Sí" : "No"}</TableCell>
+                    <TableCell>{s.entregaLab ? "Sí" : "No"}</TableCell>
+                    <TableCell>{s.Seccion}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditing(s);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        Editar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <ServiceDialog

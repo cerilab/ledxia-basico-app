@@ -23,15 +23,10 @@ import { NewOrderSheet } from "@/components/reception/new-order-sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import useRetrieveServices from "@/components/queries/retrieve";
 
 const DAY_MS = 86_400_000;
-
-const formm = [
-  { id: 1, name: "RADIOGRAFIA"},
-  { id: 2, name: "BIOPSIA"},
-  { id: 3, name: "SONOGRAFIA"}
-];
-
+ 
 function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -58,6 +53,14 @@ export function ReceptionClient() {
   const [sheetOpen, setSheetOpen] = useState(false);
   // Cambia al abrir para remontar el sheet con estado limpio.
   const [sheetKey, setSheetKey] = useState(0);
+  
+  const { 
+    services, 
+    filteredServices, 
+    loading, 
+    term, 
+    setTerm 
+  } = useRetrieveServices();
 
   function openSheet() {
     setSheetKey((k) => k + 1);
@@ -170,14 +173,15 @@ export function ReceptionClient() {
             </div>
             
             <div className="flex flex-wrap items-center gap-1.5 border-b bg-slate-50/40 px-3 py-2 dark:bg-slate-950/10">
-              {formm.map((item, index) => (
+              {//servicesmap((item, index) => (
                 <KindChip 
-                  key={index} // Always provide a unique key when rendering lists in React
+                  key={1} // Always provide a unique key when rendering lists in React
                   active 
-                  label={item.name} // Assuming 'item' is the individual string/value from 'formm'
+                  label={"hola estoy en proceso"} // Assuming 'item' is the individual string/value from 'formm'
                   count={recentOrders.length} 
                 />
-              ))}
+              //))
+              }
             </div>
 
             <div className="max-h-[520px] divide-y overflow-y-auto">
