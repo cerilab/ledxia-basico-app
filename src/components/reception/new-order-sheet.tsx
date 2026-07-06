@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import useRetrieveServices from "../queries/retrieve";
+import { useRouter } from "next/navigation";
 
 type Step = "patient" | "order";
 type ClientType = "person" | "company";
@@ -233,6 +234,8 @@ export function NewOrderSheet({
 
   const [submitting, setSubmitting] = useState(false);
 
+  const route = useRouter();
+
   useEffect(() => {
     if (!tenantId || !open) return;
     const unsubP = onSnapshot(query(patientsCol(tenantId), orderBy("lastName")), (snap) =>
@@ -351,7 +354,9 @@ function toggleService(s: Service) {
       });
       toast.success("Orden creada");
       onCreated?.("new-invoice-id"); // Aquí deberías pasar el ID real de la factura creadaq
+      route.push(`/recepcion/`)
       onClose();
+      ;
         } catch (error) {
       // En TS, 'error' es de tipo 'unknown' por defecto
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";

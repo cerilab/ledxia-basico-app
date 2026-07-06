@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { ServicesReader } from "@/components/servicios/Import";
 import useRetrieveServices from "@/components/queries/retrieve";
+import { useRouter } from "next/navigation";
 
 export function ServicesClient() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -178,11 +179,13 @@ const EMPTY: ServiceInput = {
 
 function ServiceDialog({
   open,
+  Close,
   onOpenChange,
   tenantId,
   service,
 }: {
   open: boolean;
+  Close: () => void;
   onOpenChange: (v: boolean) => void;
   tenantId?: string;
   service: Service | null;
@@ -190,6 +193,8 @@ function ServiceDialog({
   const isEdit = !!service;
   const [form, setForm] = useState<ServiceInput>(EMPTY);
   const [saving, setSaving] = useState(false);
+
+  const route = useRouter();
 
   useEffect(() => {
     if (open) {
@@ -228,7 +233,9 @@ function ServiceDialog({
       } else {
         await createService(tenantId, form);
         toast.success("Servicio creado");
+        route.push(`/recepcion`);
       }
+      
       onOpenChange(false);
     } catch {
       toast.error("No se pudo guardar el servicio");
