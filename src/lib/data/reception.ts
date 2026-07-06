@@ -11,8 +11,6 @@ export interface ChargeInput {
   companyName?: string;
   items: InvoiceItem[];
   subtotal: number;
-  taxAmount: number;
-  discount: number;
   total: number;
   issuedBy: string;
   fiscalRegime: FiscalRegime;
@@ -20,25 +18,22 @@ export interface ChargeInput {
 }
 
 export function buildItem(service: Service, quantity: number): InvoiceItem {
-  const taxAmount = (service.price * quantity * service.taxRate) / 100;
-  const total = service.price * quantity + taxAmount;
+  const total = service.Precio_privado * quantity;
   return {
-    description: service.name,
-    quantity,
-    unitPrice: service.price,
-    taxRate: service.taxRate,
-    taxAmount,
-    discount: 0,
-    total,
-  };
+  description: service.Examen,
+  quantity,
+  unitPrice: service.Precio_privado,
+  total,
+  taxRate: 0,
+  taxAmount: 0,
+  discount: 0,
+};
 }
 
 export function calcTotals(items: InvoiceItem[]) {
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-  const taxAmount = items.reduce((s, i) => s + i.taxAmount, 0);
-  const discount = items.reduce((s, i) => s + i.discount, 0);
   const total = items.reduce((s, i) => s + i.total, 0);
-  return { subtotal, taxAmount, discount, total };
+  return { subtotal, total };
 }
 
 export async function createCharge(tenantId: string, uid: string, input: ChargeInput) {

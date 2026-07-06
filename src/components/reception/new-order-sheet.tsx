@@ -292,12 +292,18 @@ export function NewOrderSheet({
     setStep("order");
   }
 
-  function toggleService(s: Service) {
+function toggleService(s: Service) {
     setCart((prev) => {
       if (prev.some((c) => c.service.Codigo === s.Codigo)) {
         return prev.filter((c) => c.service.Codigo !== s.Codigo);
       }
-      return [...prev, { service: s, item: buildItem(s, 1) }];
+      // Injecting the correct field maps so buildItem picks up the description and data structures natively
+      const structuralService = {
+        ...s,
+        description: s.Examen || "", // Fallback field in case buildItem relies on explicit text naming
+        name: s.Examen || ""
+      };
+      return [...prev, { service: s, item: buildItem(structuralService, 1) }];
     });
   }
 
@@ -320,7 +326,7 @@ export function NewOrderSheet({
     setSubmitting(true);
     try {
       console.log("Creating order with data:", cart.map((c) => c.item))
-     /* const billedName = selectedPatient
+      const billedName = selectedPatient
         ? patientFullName(selectedPatient)
         : selectedCompany?.name ?? "Empresa";
       const ref = await createCharge(tenantId, user.uid, {
@@ -345,7 +351,7 @@ export function NewOrderSheet({
       });
       toast.success("Orden creada");
       onCreated?.("new-invoice-id"); // Aquí deberías pasar el ID real de la factura creadaq
-      onClose();*/
+      onClose();
         } catch (error) {
       // En TS, 'error' es de tipo 'unknown' por defecto
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";
