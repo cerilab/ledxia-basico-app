@@ -149,18 +149,27 @@ export function ServicesClient() {
         </div>
       </div>
 
-      <ServiceDialog
-        key={editing?.Codigo ?? "new"}
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditing(null);
-        }}
-        tenantId={tenantId}
-        service={editing}
-      />
+     <ServiceDialog
+  key={editing?.Codigo ?? "new"}
+  open={dialogOpen}
+  onOpenChange={(open) => {
+    setDialogOpen(open);
+    if (!open) setEditing(null);
+  }}
+  tenantId={tenantId}
+  service={editing}
+  Close={() => setDialogOpen(false)} // Added this since it's required by your type definition
+/>
     </div>
   );
+}
+
+interface ServiceDialogProps {
+  open: boolean;
+  Close: () => void; // Note: Consider changing to lowercase 'close' to match standard naming conventions
+  onOpenChange: (v: boolean) => void;
+  tenantId?: string;
+  service: Service | null;
 }
 
 const EMPTY: ServiceInput = {
