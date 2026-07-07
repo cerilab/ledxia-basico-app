@@ -155,10 +155,11 @@ export function ServicesClient() {
         onOpenChange={(open) => {
           setDialogOpen(open);
           if (!open) setEditing(null);
-        }}
+        } }
         tenantId={tenantId}
-        service={editing}
-      />
+        service={editing} Close={function (): void {
+          throw new Error("Function not implemented.");
+        } }      />
     </div>
   );
 }
