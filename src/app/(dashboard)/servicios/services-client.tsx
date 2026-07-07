@@ -149,7 +149,7 @@ export function ServicesClient() {
         </div>
       </div>
 
-     <ServiceDialog
+<ServiceDialog
   key={editing?.Codigo ?? "new"}
   open={dialogOpen}
   onOpenChange={(open) => {
@@ -158,7 +158,7 @@ export function ServicesClient() {
   }}
   tenantId={tenantId}
   service={editing}
-  Close={() => setDialogOpen(false)} // Added this since it's required by your type definition
+  Close={() => setDialogOpen(false)} // <-- ADD THIS LINE
 />
     </div>
   );
@@ -194,7 +194,7 @@ function ServiceDialog({
   service,
 }: {
   open: boolean;
-  Close: () => void;
+  Close?: () => void; // <-- Added "?" here to make it optional
   onOpenChange: (v: boolean) => void;
   tenantId?: string;
   service: Service | null;
