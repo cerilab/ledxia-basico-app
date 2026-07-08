@@ -170,7 +170,7 @@ function InlineCompanyForm({ defaultName, onCancel, onSaved }: { tenantId?: stri
       <Input id="tmp-cname" defaultValue={defaultName} placeholder="Nombre de la empresa" className="h-9" />
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
-        <Button size="sm" onClick={() => onSaved({ id: "temp-c-" + Date.now(), name: (document.getElementById("tmp-cname") as HTMLInputElement)?.value || "Nueva Empresa", rnc: "" })}>Guardar</Button>
+        onClick={() => onSaved({ id: "temp-c-" + Date.now(), name: (document.getElementById("...") as HTMLInputElement).value, rnc: (document.getElementById("...") as HTMLInputElement).value, active: true })}
       </div>
     </div>
   );
@@ -201,10 +201,12 @@ export function NewOrderSheet({
   open,
   onClose,
   onCreated,
+  active?,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated?: (invoiceId: string) => void;
+  active? Boolean;
 }) {
   const { tenantId, user } = useAuth();
 
