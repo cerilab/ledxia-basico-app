@@ -38,7 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import useRetrieveServices from "../queries/retrieve";
+import {useRetrieveServices} from "../queries/retrieve";
 import { useRouter } from "next/navigation";
 
 type Step = "patient" | "order";
@@ -163,17 +163,42 @@ function CatPill({ active, label, count }: { active?: boolean; label: string; co
 }
 
 // Fallbacks de seguridad si no tienes creados los formularios inline aún
-function InlineCompanyForm({ defaultName, onCancel, onSaved }: { tenantId?: string; defaultName: string; onCancel: () => void; onSaved: (c: Company) => void }) {
-  return (
-    <div className="rounded-lg border bg-white p-3 dark:bg-slate-900 space-y-2">
-      <p className="text-xs text-muted-foreground">Formulario rápido de empresa:</p>
-      <Input id="tmp-cname" defaultValue={defaultName} placeholder="Nombre de la empresa" className="h-9" />
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
-        <Button size="sm" onClick={() => onSaved({ id: "temp-c-" + Date.now(), name: (document.getElementById("tmp-cname") as HTMLInputElement)?.value || "Nueva Empresa", rnc: "" })}>Guardar</Button>
-      </div>
-    </div>
-  );
+function InlineCompanyForm({defaultName, onCancel, onSaved}: {
+    tenantId?: string;
+    defaultName: string;
+    onCancel: () => void;
+    onSaved: (c: Company) => void
+}) {
+    const handleSave = () => {
+        const nameInput = document.getElementById("tmp-cname") as HTMLInputElement;
+        // Assuming you might add an RNC input later, otherwise replace with a fallback string
+        const rncInput = document.getElementById("tmp-crnc") as HTMLInputElement;
+
+        if (nameInput) {
+            onSaved({
+                id: "temp-c-" + Date.now(),
+                name: nameInput.value,
+                rnc: rncInput ? rncInput.value : "",
+                active: true
+            });
+        }
+    };
+
+    return (
+        <div className="rounded-lg border bg-white p-3 dark:bg-slate-900 space-y-2">
+            <p className="text-xs text-muted-foreground">Formulario rápido de empresa:</p>
+            <Input id="tmp-cname" defaultValue={defaultName} placeholder="Nombre de la empresa" className="h-9" />
+
+            <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={onCancel}>
+                    Cancelar
+                </Button>
+                <Button size="sm" onClick={handleSave}>
+                    Guardar
+                </Button>
+            </div>
+        </div>
+    );
 }
 
 function InlinePatientForm({ onCancel, onSaved }: { tenantId?: string; companyMode: boolean; onCancel: () => void; onSaved: (p: Patient) => void }) {
@@ -186,7 +211,33 @@ function InlinePatientForm({ onCancel, onSaved }: { tenantId?: string; companyMo
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
-        <Button size="sm" onClick={() => onSaved({ id: "temp-p-" + Date.now(), firstName: (document.getElementById("tmp-pname") as HTMLInputElement)?.value || "Paciente", lastName: (document.getElementById("tmp-plast") as HTMLInputElement)?.value || "Temporal", cedula: "" })}>Registrar</Button>
+        <Button size="sm" onClick={() => onSaved({
+            active: false,
+            addressMunicipality: "",
+            addressProvince: "",
+            addressSector: "",
+            addressStreet: "",
+            affiliateNumber: "",
+            bloodType: "",
+            contractNumber: "",
+            createdAt: 0,
+            dob: "",
+            email: "",
+            emergencyContactName: "",
+            emergencyContactPhone: "",
+            emergencyContactRelationship: "",
+            familyHistory: "",
+            legalGuardian: "",
+            medicalHistory: "",
+            nationality: "",
+            nss: "",
+            passport: "",
+            patientCategory: undefined,
+            phoneHome: "",
+            phoneMobile: "",
+            sexAtBirth: undefined,
+            updatedAt: 0,
+            id: "temp-p-" + Date.now(), firstName: (document.getElementById("tmp-pname") as HTMLInputElement)?.value || "Paciente", lastName: (document.getElementById("tmp-plast") as HTMLInputElement)?.value || "Temporal", cedula: "" })}>Registrar</Button>
       </div>
     </div>
   );
@@ -201,10 +252,12 @@ export function NewOrderSheet({
   open,
   onClose,
   onCreated,
+  active
 }: {
-  open: boolean;
-  onClose: () => void;
-  onCreated?: (invoiceId: string) => void;
+    open: boolean;
+    onClose: () => void;
+    onCreated?: (invoiceId: string) => void;
+    active?: boolean;
 }) {
   const { tenantId, user } = useAuth();
 
@@ -315,7 +368,7 @@ function toggleService(s: Service) {
     const t = serviceTerm.trim().toLowerCase();
     if (!t) return tyrannicalServices;
     return tyrannicalServices.filter(
-      (s) =>
+      (s: { Examen: string; Codigo: string; }) =>
         s.Examen?.toLowerCase().includes(t) ||
         s.Codigo?.toLowerCase().includes(t)
     );
@@ -625,16 +678,17 @@ function PatientStep(props: {
               Empresa que factura esta orden
             </Label>
             {showCompanyForm ? (
-              <InlineCompanyForm
-                tenantId={tenantId}
-                defaultName={companyTerm.trim()}
-                onCancel={() => setShowCompanyForm(false)}
-                onSaved={(c) => {
-                  setSelectedCompany(c);
-                  setCompanyTerm("");
-                  setShowCompanyForm(false);
-                }}
-              />
+                <InlineCompanyForm
+                    // Remove or comment this line out if tenantId doesn't exist in this file
+                    // tenantId={tenantId}
+                    defaultName={companyTerm.trim()}
+                    onCancel={() => setShowCompanyForm(false)}
+                    onSaved={(c) => {
+                        setSelectedCompany(c);
+                        setCompanyTerm("");
+                        setShowCompanyForm(false);
+                    }}
+                />
             ) : selectedCompany ? (
               <SelectedCard
                 title={selectedCompany.name}

@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import {InvoiceComponent} from "./invoice"
 
 function Toggle({
   checked,
@@ -249,104 +250,8 @@ function ReceiptPreview({
     "RD$" + n.toLocaleString("es-DO", { minimumFractionDigits: 2 });
 
   return (
-    <div
-      className="rounded-md border bg-white p-4 font-mono text-[11px] leading-tight text-black shadow-sm"
-      style={{ width }}
-    >
-      <div className="text-center">
-        {form.showLogo &&
-          (profile?.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.logoUrl}
-              alt=""
-              className="mx-auto mb-1 h-10 w-10 object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
-            <div className="mx-auto mb-1 h-10 w-10 rounded bg-gray-200" />
-          ))}
-        <p className="font-bold uppercase">{profile?.name || "Mi Clínica"}</p>
-        {form.headerText && <p>{form.headerText}</p>}
-        {form.showRnc && profile?.rnc && <p>RNC: {profile.rnc}</p>}
-        {form.showPhone && profile?.phone && <p>Tel: {profile.phone}</p>}
-        {form.showAddress && profile?.address && <p>{profile.address}</p>}
-      </div>
-
-      <div className="my-2 border-t border-dashed border-black" />
-
-      <div className="space-y-0.5">
-        <div className="flex justify-between">
-          <span>Factura:</span>
-          <span>FAC-000123</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Fecha:</span>
-          <span>25/06/2026</span>
-        </div>
-        {form.showPatient && (
-          <div className="flex justify-between">
-            <span>Paciente:</span>
-            <span>Juan Pérez</span>
-          </div>
-        )}
-        {form.showCashier && (
-          <div className="flex justify-between">
-            <span>Cajero:</span>
-            <span>María R.</span>
-          </div>
-        )}
-      </div>
-
-      <div className="my-2 border-t border-dashed border-black" />
-
-      <div className="space-y-1">
-        {items.map((i) => (
-          <div key={i.name}>
-            <div>{i.name}</div>
-            <div className="flex justify-between">
-              <span>
-                {i.qty} x {money(i.price)}
-              </span>
-              <span>{money(i.qty * i.price)}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="my-2 border-t border-dashed border-black" />
-
-      <div className="space-y-0.5">
-        {form.showItbisBreakdown && (
-          <>
-            <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>{money(subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>ITBIS (18%):</span>
-              <span>{money(itbis)}</span>
-            </div>
-          </>
-        )}
-        <div className="flex justify-between font-bold">
-          <span>TOTAL:</span>
-          <span>{money(total)}</span>
-        </div>
-      </div>
-
-      <div className="my-2 border-t border-dashed border-black" />
-
-      <div className="text-center">
-        {form.footerText && <p>{form.footerText}</p>}
-        {form.showFiscalMessage && (
-          <p className="mt-1 text-[10px]">
-            Comprobante con valor fiscal. Conserve este recibo.
-          </p>
-        )}
-      </div>
-    </div>
+    <>
+      <InvoiceComponent Logo = {profile.logoUrl} rnc={""} location={""} contact={""} store={[]} pacientes={[]} cart={[]} fisc={[]} currentDate={""}/>
+    </>
   );
 }

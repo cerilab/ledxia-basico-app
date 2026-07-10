@@ -23,7 +23,7 @@ import { NewOrderSheet } from "@/components/reception/new-order-sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import useRetrieveServices from "@/components/queries/retrieve";
+import {useRetrieveServices} from "@/components/queries/retrieve";
 
 const DAY_MS = 86_400_000;
  

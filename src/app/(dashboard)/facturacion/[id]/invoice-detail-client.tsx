@@ -47,6 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import CheckoutPage from "@/components/invoice/thermal";
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "cash", label: "Efectivo" },
@@ -101,6 +102,12 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
       </div>
     );
   }
+
+
+  const handleCheckout = () => {
+  console.log("funciona");
+  router.push("/checkout");
+};
 
   const remaining = invoice.total - invoice.paidAmount;
   const isClosed = invoice.status === "paid" || invoice.status === "cancelled";
@@ -232,7 +239,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             <span className="text-primary">{formatPrice(remaining)}</span>
           </div>
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={() => setPayOpen(true)}>
+            <Button className="flex-1" onClick={() => handleCheckout()} nativeButton={true}>
               Registrar pago
             </Button>
             <Button

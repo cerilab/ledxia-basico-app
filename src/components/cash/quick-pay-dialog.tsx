@@ -88,6 +88,7 @@ export function QuickPayDialog({
       onOpenChange(false);
     } catch {
       toast.error("No se pudo registrar el cobro");
+      console.log("esto es lo que no hace funcionar el programa ====>", e)
     } finally {
       setSaving(false);
     }

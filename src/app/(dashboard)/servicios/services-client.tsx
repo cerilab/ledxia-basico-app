@@ -30,7 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ServicesReader } from "@/components/servicios/Import";
-import useRetrieveServices from "@/components/queries/retrieve";
+import {useRetrieveServices} from "@/components/queries/retrieve";
 import { useRouter } from "next/navigation";
 
 export function ServicesClient() {
