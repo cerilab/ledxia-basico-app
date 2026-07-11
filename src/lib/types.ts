@@ -106,6 +106,7 @@ export interface EcfStatus {
 }
 
 export interface Invoice {
+  paymentMethod: string;
   id: ID;
   invoiceNumber: string;
   patientId: ID;

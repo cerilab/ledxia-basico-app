@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -232,7 +233,7 @@ export function CashierClient() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-semibold tabular-nums">{formatPrice(remaining)}</span>
-                        <Button size="sm" onClick={() => setPayInvoice(inv)}>
+                        <Button size="sm" onClick={() => router.push(`/facturacion/${inv.id}`)}>
                           Cobrar
                         </Button>
                       </div>

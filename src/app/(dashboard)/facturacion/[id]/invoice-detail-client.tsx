@@ -47,14 +47,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import CheckoutPage from "@/components/invoice/thermal";
 
-const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+// Se añadieron 3 nuevos métodos de pago: seguro médico, código QR y otros.
+const PAYMENT_METHODS: { value: PaymentMethod | string; label: string }[] = [
   { value: "cash", label: "Efectivo" },
   { value: "credit_card", label: "Tarjeta crédito" },
   { value: "debit_card", label: "Tarjeta débito" },
   { value: "transfer", label: "Transferencia" },
   { value: "check", label: "Cheque" },
+  { value: "insurance", label: "Seguro Médico" },
+  { value: "qr_code", label: "Código QR / Enlace" },
+  { value: "other", label: "Otros" },
 ];
 
 export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
@@ -96,18 +99,14 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
       <div className="flex h-64 flex-col items-center justify-center gap-4 text-muted-foreground">
         <AlertTriangle className="h-8 w-8" />
         <p>Factura no encontrada.</p>
-        <Button variant="outline" render={<Link href="/facturacion/lista" />}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+        <Button variant="outline" >
+          <Link href="/facturacion/lista">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Link>
         </Button>
       </div>
     );
   }
-
-
-  const handleCheckout = () => {
-  console.log("funciona");
-  router.push("/checkout");
-};
 
   const remaining = invoice.total - invoice.paidAmount;
   const isClosed = invoice.status === "paid" || invoice.status === "cancelled";
@@ -116,8 +115,10 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
   return (
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" render={<Link href="/facturacion/lista" />}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Facturas
+        <Button variant="ghost" size="sm" >
+          <Link href="/facturacion/lista">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Facturas
+          </Link>
         </Button>
       </div>
 
@@ -209,7 +210,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
               <TableBody>
                 {payments.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell>{METHOD_LABEL[p.method]}</TableCell>
+                    <TableCell>{METHOD_LABEL[p.method] ?? p.method}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {new Date(p.paidAt).toLocaleDateString("es-DO")}
                     </TableCell>
@@ -239,7 +240,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             <span className="text-primary">{formatPrice(remaining)}</span>
           </div>
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={() => handleCheckout()} nativeButton={true}>
+            <Button className="flex-1" onClick={() => setPayOpen(true)}>
               Registrar pago
             </Button>
             <Button
@@ -390,7 +391,7 @@ function PaymentDialog({
   invoiceTotal: number;
   onSuccess: () => void;
 }) {
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [method, setMethod] = useState<PaymentMethod | string>("cash");
   const [amount, setAmount] = useState(remaining);
   const [tendered, setTendered] = useState(0);
   const [reference, setReference] = useState("");
@@ -408,7 +409,7 @@ function PaymentDialog({
     setSaving(true);
     try {
       const input: PaymentInput = {
-        method,
+        method: method as PaymentMethod,
         amount,
         amountTendered: method === "cash" ? tendered || amount : undefined,
         reference: reference.trim() || undefined,
@@ -429,14 +430,14 @@ function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Método de pago</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1 border rounded-md">
               {PAYMENT_METHODS.map((m) => (
                 <button
                   key={m.value}
@@ -492,12 +493,12 @@ function PaymentDialog({
 
           {method !== "cash" && (
             <div className="space-y-2">
-              <Label htmlFor="pay-ref">Referencia (opcional)</Label>
+              <Label htmlFor="pay-ref">Referencia / Detalle (opcional)</Label>
               <Input
                 id="pay-ref"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                placeholder="N° de aprobación"
+                placeholder={method === "insurance" ? "N° de Autorización" : "N° de confirmación"}
               />
             </div>
           )}

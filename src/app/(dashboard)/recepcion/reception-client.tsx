@@ -204,7 +204,6 @@ export function ReceptionClient() {
                     key={order.id}
                     order={order}
                     now={now}
-                    onOpen={() => router.push(`/facturacion/${order.id}`)}
                   />
                 ))
               )}
@@ -237,8 +236,6 @@ export function ReceptionClient() {
             <span className="hidden text-slate-400 md:inline">· {displayName}</span>
           )}
         </div>
-        <HotkeyHint k="F1" label="Nueva orden" />
-        <HotkeyHint k="F5" label="Refrescar" />
         <div className="ml-auto flex items-center gap-2 text-slate-400">
           <span className="hidden font-semibold md:inline">{BRAND.name}</span>
           <span className="opacity-50">·</span>
@@ -391,11 +388,9 @@ function KindChip({
 function OrderRow({
   order,
   now,
-  onOpen,
 }: {
   order: Invoice;
   now: number;
-  onOpen: () => void;
 }) {
   const isCompany = !!order.companyName;
   const clientName = order.companyName || order.patientName || "Cliente";
@@ -406,7 +401,6 @@ function OrderRow({
   return (
     <button
       type="button"
-      onClick={onOpen}
       className={cn(
         "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
         isEmergency
@@ -456,16 +450,5 @@ function OrderRow({
         {now && order.issuedAt ? relativeTime(order.issuedAt, now) : ""}
       </div>
     </button>
-  );
-}
-
-function HotkeyHint({ k, label }: { k: string; label: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="rounded border border-slate-600 bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] font-bold">
-        {k}
-      </span>
-      <span className="hidden text-slate-400 md:inline">{label}</span>
-    </div>
   );
 }
