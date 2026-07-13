@@ -1,8 +1,8 @@
-import React from 'react';
+/*import React from 'react';
 import { InvoiceComponent, InvoiceProps } from '@/app/(dashboard)/configuracion/plantillas/invoice';
 
 export default function CheckoutPage() {
-  // 1. Create the data object that matches the InvoiceProps structure
+  
   const currentInvoiceData: InvoiceProps = {
     rnc: "RNC: 1-31-12345-6",
     location: "Av. Winston Churchill, Santo Domingo, RD",
@@ -62,7 +62,7 @@ export default function CheckoutPage() {
         <p className="text-sm text-gray-500">Vista previa del recibo de venta</p>
       </div>
 
-      {/* 2. Call your component and spread or pass the prop values */}
+      {  }
       <InvoiceComponent 
         rnc={currentInvoiceData.rnc}
         location={currentInvoiceData.location}
@@ -75,4 +75,4 @@ export default function CheckoutPage() {
       />
     </div>
   );
-}
+}*/

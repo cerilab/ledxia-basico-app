@@ -4,7 +4,7 @@ import { formatPrice } from "@/lib/data/services";
 import { cn } from "@/lib/utils";
 import { Button } from "@base-ui/react";
 
-interface TicketInvoiceTemplateProps {
+export interface InvoiceProps {
     invoice?: any;
     payments?: any[];
     currentPaymentChange?: number;
@@ -48,13 +48,13 @@ const MOCK_INVOICE: PreviewInvoice = {
     ]
 };
 
-export function ReceiptPreview({
+export function InvoiceComponent({
                                    invoice,
                                    payments = [],
                                    currentPaymentChange = 70.00,
                                    currentPaymentMethod = "Efectivo",
                                    templateConfig,
-                               }: TicketInvoiceTemplateProps) {
+                               }: InvoiceProps) {
 
     
     const data = invoice ?? MOCK_INVOICE;
