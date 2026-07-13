@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { ReceiptPreview } from "./invoice";
+import { InvoiceComponent } from "./invoice";
 
 function Toggle({
     checked,
