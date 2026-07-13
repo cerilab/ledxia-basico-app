@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRetrievedata } from "@/components/queries/retrieve";
 
@@ -25,7 +27,7 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground">Resumen de la clínica.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {filteredServices.map((s) => (
+        {STATS.map((s) => (
           <Card key={s.label}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">

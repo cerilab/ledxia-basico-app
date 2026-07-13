@@ -1,3 +1,5 @@
+"use client"
+
 import { useAuth } from "@/lib/auth/context";
 import { servicesCol } from "@/lib/data/services";
 import { Service } from "@/lib/types";
@@ -5,6 +7,22 @@ import { getDocs } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 
 const mapItemToService = (innerData: any, docId: string, index: number): Service => {
+  if (!innerData) {
+    return {
+      Codigo: `${docId}-${index}`,
+      Examen: "Examen inválido",
+      Seccion: "—",
+      tipo_muestra: "—",
+      tipo_envase: "—",
+      metodo: "—",
+      requisito: "—",
+      Entregable: "—",
+      Precio_privado: 0,
+      entregaimagen: false,
+      entregaLab: false,
+    };
+  }
+
   if (!innerData.EXAMEN && !innerData.examen && !innerData.Examen) {
     console.warn(`Mismatched properties at doc [${docId}] index [${index}]. Available keys:`, Object.keys(innerData));
   }
@@ -41,8 +59,8 @@ const mapItemToService = (innerData: any, docId: string, index: number): Service
     requisito: String(requisito),
     Entregable: String(entregable),
     Precio_privado: Number(precio),
-    entregaimagen: Number(imgDeliv) === 1 || imgDeliv === true,
-    entregaLab: Number(labDeliv) === 1 || labDeliv === true,
+    entregaimagen: Number(imgDeliv) === 1 || imgDeliv === true || imgDeliv === "true",
+    entregaLab: Number(labDeliv) === 1 || labDeliv === true || labDeliv === "true",
   };
 };
 
@@ -54,6 +72,7 @@ export function useRetrieveServices() {
 
   useEffect(() => {
     if (!tenantId) {
+      setServices([]); // Clear state if tenant logs out
       setLoading(false);
       return;
     }
@@ -71,6 +90,7 @@ export function useRetrieveServices() {
           const data = doc.data();
           if (!data) return;
 
+          // Target nested structure variations or default to full object
           const rawPayload = data.services || data.datos || data.items || data;
 
           if (Array.isArray(rawPayload)) {
@@ -79,11 +99,14 @@ export function useRetrieveServices() {
             });
           } else if (typeof rawPayload === "object" && rawPayload !== null) {
             const values = Object.values(rawPayload);
-            if (values.length > 0 && typeof values[0] === "object") {
+            
+            // Check if it's a key-value record of objects or just a flat document
+            if (values.length > 0 && values[0] !== null && typeof values[0] === "object") {
               values.forEach((item, index) => {
                 fetchedServices.push(mapItemToService(item, doc.id, index));
               });
             } else {
+              // Flat document structure
               fetchedServices.push(mapItemToService(rawPayload, doc.id, 0));
             }
           }
@@ -103,8 +126,8 @@ export function useRetrieveServices() {
     if (!t) return services;
 
     return services.filter((s) => {
-      const nameMatch = s.Examen ? s.Examen.toLowerCase().includes(t) : false;
-      const codeMatch = s.Codigo ? s.Codigo.toLowerCase().includes(t) : false;
+      const nameMatch = s.Examen ? String(s.Examen).toLowerCase().includes(t) : false;
+      const codeMatch = s.Codigo ? String(s.Codigo).toLowerCase().includes(t) : false;
       return nameMatch || codeMatch;
     });
   }, [services, term]);
