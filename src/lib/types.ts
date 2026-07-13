@@ -1,4 +1,5 @@
 import type { ModuleKey } from "@/lib/modules";
+import { Key, ReactNode } from "react";
 
 // Tipos de dominio, adaptados a documentos de Firestore.
 
@@ -58,6 +59,8 @@ export interface Patient {
 }
 
 export interface Service {
+  label: Key | null | undefined;
+  value: ReactNode;
   Codigo: ID;
   Examen: string;
   Seccion: string;
