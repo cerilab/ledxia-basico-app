@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
     AlertTriangle,
@@ -45,8 +45,22 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { InvoiceComponent } from "@/app/(dashboard)/configuracion/plantillas/invoice";
+import { useReactToPrint } from "react-to-print";
 
-// Fallback dummy component or import to mock EcfSection if it's external
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import MedicalInvoice from "@/components/invoice/pdf";
+
+
 function EcfSection({ invoiceId, tenantId, ecf }: { invoiceId: string; tenantId: string; ecf: any }) {
     return <div className="p-4 border rounded-xl bg-muted/20">Sección ECF: {invoiceId}</div>;
 }
@@ -59,16 +73,13 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const [payments, setPayments] = useState<Payment[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Lista de impresoras del sistema
-    const [availablePrinters, setAvailablePrinters] = useState<PrinterType[]>([]);
-    const [selectedPrinterA, setSelectedPrinterA] = useState<string>("");
-    const [selectedPrinterB, setSelectedPrinterB] = useState<string>("");
-
-    // Visibilidad de módulos principales
     const [showPayForm, setShowPayForm] = useState(false);
     const [showCancelForm, setShowCancelForm] = useState(false);
 
-    // --- ESTADOS FORMULARIO DE PAGO ESTILO CAJA ---
+    const [showA4Prompt, setShowA4Prompt] = useState(false);
+    const [isA4Mode, setIsA4Mode] = useState(false);
+    const [triggerPrint, setTriggerPrint] = useState(false); // Controls print timing
+
     const [activeMethod, setActiveMethod] = useState<PaymentMethod>("cash");
     const [cashAmount, setCashAmount] = useState<string>("");
     const [cashTendered, setCashTendered] = useState<string>("");
@@ -91,7 +102,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
     const paidAmount = invoice?.paidAmount;
 
-    // Suscribirse a los cambios de la factura
     useEffect(() => {
         if (!tenantId) return;
         const unsub = subscribeInvoice(tenantId, invoiceId, (inv) => {
@@ -101,7 +111,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         return unsub;
     }, [tenantId, invoiceId]);
 
-    // Obtener historial de pagos
     useEffect(() => {
         if (!tenantId || paidAmount == null) return;
         getPaymentsForInvoice(tenantId, invoiceId).then((data) => {
@@ -109,19 +118,34 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         });
     }, [tenantId, invoiceId, paidAmount]);
 
-    // Suscribirse a las impresoras registradas en el tenant
-    useEffect(() => {
-        if (!tenantId) return;
-        const unsub = subscribePrinters(tenantId, (printersList) => {
-            setAvailablePrinters(printersList);
-            if (printersList.length > 0) {
-                // Asignaciones por defecto (puedes cambiar la lógica de selección según tus alias o nombres)
-                setSelectedPrinterA(printersList[0]?.id || "");
-                setSelectedPrinterB(printersList[1]?.id || printersList[0]?.id || "");
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    // FIXED: Use the universally compatible "content" callback function configuration
+    const reactToPrintFn = useReactToPrint({ 
+        content: () => contentRef.current,
+        onAfterPrint: () => {
+            if (!isA4Mode) {
+                setShowA4Prompt(true);
+            } else {
+                setIsA4Mode(false);
             }
-        });
-        return unsub;
-    }, [tenantId]);
+        }
+    });
+
+    // Manejador que se ejecuta si el usuario presiona "Sí" en el Popup A4
+    const handleConfirmA4Print = () => {
+        setShowA4Prompt(false);
+        setIsA4Mode(true);
+        setTriggerPrint(true); // Signal that we are ready to print A4 layout
+    };
+
+    // FIXED: Triggers print only after React updates the DOM with the new isA4Mode class
+    useEffect(() => {
+        if (triggerPrint) {
+            reactToPrintFn();
+            setTriggerPrint(false);
+        }
+    }, [triggerPrint, isA4Mode]);
 
     if (loading) {
         return (
@@ -136,7 +160,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             <div className="flex h-64 flex-col items-center justify-center gap-4 text-muted-foreground">
                 <AlertTriangle className="h-8 w-8" />
                 <p>Factura no encontrada.</p>
-                <Button variant="outline" >
+                <Button variant="outline" asChild>
                     <Link href="/facturacion/lista">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                     </Link>
@@ -202,7 +226,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
         setSaving(true);
         try {
-            // 1. Registrar transaccionalidad del cobro en base de datos
             const input: PaymentInput = {
                 method: activeMethod,
                 amount: finalAmount,
@@ -213,34 +236,14 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             // @ts-ignore
             const result = await registerPayment(tenantId, invoiceId, user.uid, input);
 
-            // 2. Ejecutar Multi-Impresión Simultánea vía Cloud Functions (Si está activo)
-            if (autoPrint) {
-                toast.info("Enviando comandos de impresión duplicados...");
-                try {
-                    await Promise.all([
-                        createPrintJobFn({
-                            invoiceId,
-                            printerId: selectedPrinterA, // Impresora Destino 1 (Ej: Recibo / Caja)
-                            options: { copies: 1 }
-                        }),
-                        createPrintJobFn({
-                            invoiceId,
-                            printerId: selectedPrinterB, // Impresora Destino 2 (Ej: Consultorio / A4)
-                            options: { copies: 1 }
-                        })
-                    ]);
-                    toast.success("Ambas órdenes enviadas a cola de impresión hardware.");
-                    console.log("result");
-                } catch (printErr) {
-                    console.error("Print Error: ", printErr);
-                    toast.error("El pago se registró, pero falló el envío simultáneo a las impresoras.");
-                }
-            }
-
             if (activeMethod === "cash" && result.changeGiven > 0) {
                 toast.success(`Pago registrado. Cambio: ${formatPrice(result.changeGiven)}`);
             } else {
                 toast.success("Pago registrado exitosamente");
+            }
+
+            if (autoPrint) {
+                reactToPrintFn();
             }
 
             setShowPayForm(false);
@@ -254,9 +257,11 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
     async function handleCancelInvoice(e: React.FormEvent) {
         e.preventDefault();
-        if (!tenantId || !user?.uid ) return;
+        if (!tenantId || !user?.uid) return;
+
         setSaving(true);
         try {
+            await cancelInvoice(tenantId, invoiceId, user.uid);
             toast.success("Factura anulada");
             setShowCancelForm(false);
             router.push("/facturacion/lista");
@@ -270,9 +275,31 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
     return (
         <div className="space-y-6 max-w-5xl w-full mx-auto p-4">
+            <AlertDialog open={showA4Prompt} onOpenChange={setShowA4Prompt}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Deseas imprimir el recibo en formato A4?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            El primer recibo se ha enviado a imprimir correctamente. Presiona confirmar si deseas generar e imprimir la copia adicional en formato de página completa (A4).
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setShowA4Prompt(false)}>No, gracias</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmA4Print}>Sí, imprimir A4</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* FIXED: Removed the "hidden" div wrapper and styled it to be invisible but physically present in the DOM */}
+            <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden pointer-events-none opacity-0">
+                <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
+                    <MedicalInvoice />
+                </div>
+            </div>
+
             {/* Header original */}
             <div className="flex items-center justify-between">
-                <Button variant="ghost" size="sm" >
+                <Button variant="ghost" size="sm" asChild>
                     <Link href="/facturacion/lista">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Facturas
                     </Link>
@@ -284,7 +311,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
             <div className="bg-background rounded-xl p-4 border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Factura </span>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Factura</span>
                     <h2 className="text-xl font-bold text-foreground">{invoice.invoiceNumber ?? "Cargo sin número"}</h2>
                     <p className="text-sm text-muted-foreground">
                         <span className="font-semibold text-foreground">{invoice.patientName}</span> · RNC/Cédula: {invoice.patientId || "02301709404"}
@@ -307,7 +334,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             {/* Formulario de Caja Estilo Completo */}
             {!isClosed && showPayForm && (
                 <div className="bg-slate-50/50 dark:bg-zinc-900/40 rounded-xl border p-6 space-y-6 shadow-sm animate-in fade-in-50 duration-200">
-
+                    
                     {/* Fila superior informativa */}
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
                         <div className="flex items-center gap-6">
@@ -345,7 +372,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                         {/* Grid de Métodos de Pago Paralelos */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
 
-                            {/* COLUMNA 1: EFECTIVO */}
                             <div
                                 onClick={() => setActiveMethod("cash")}
                                 className={`p-4 rounded-xl border bg-background transition-all cursor-pointer relative ${
@@ -520,30 +546,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
                         </div>
 
-                        {/* Configuración rápida de Impresoras asignadas para este cobro */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted/30 rounded-lg border border-dashed">
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-bold text-muted-foreground uppercase">Impresora Destino A (Caja)</Label>
-                                <select
-                                    className="w-full text-xs p-1.5 rounded border bg-background"
-                                    value={selectedPrinterA}
-                                    onChange={(e) => setSelectedPrinterA(e.target.value)}
-                                >
-                                    {availablePrinters.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-1">
-                                <Label className="text-[11px] font-bold text-muted-foreground uppercase">Impresora Destino B (Consultorio)</Label>
-                                <select
-                                    className="w-full text-xs p-1.5 rounded border bg-background"
-                                    value={selectedPrinterB}
-                                    onChange={(e) => setSelectedPrinterB(e.target.value)}
-                                >
-                                    {availablePrinters.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
                         {/* Campo de Observaciones */}
                         <div className="space-y-2">
                             <Label htmlFor="invoice-notes" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -574,7 +576,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                                     {saving ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     ) : (
-                                        `Cobrar e Imprimir Dúplex (${formatPrice(totalDistribuido || remaining)})`
+                                        `Cobrar ${formatPrice(totalDistribuido || remaining)}`
                                     )}
                                 </Button>
                             </div>
@@ -583,7 +585,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             )}
 
-            {/* Resto de secciones de desglose (Mesa de servicios, Pagos anteriores, etc.) */}
+            {/* Mesa de servicios */}
             <section className="rounded-xl border bg-background shadow-xs overflow-hidden">
                 <Table>
                     <TableHeader className="bg-muted/40">
@@ -609,62 +611,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                         ))}
                     </TableBody>
                 </Table>
-
-                <div className="border-t px-6 py-4 space-y-1.5 text-sm text-right bg-muted/10">
-                    <div className="flex justify-end gap-12 text-muted-foreground">
-                        <span>Subtotal</span>
-                        <span className="w-24 font-mono">{formatPrice(invoice.subtotal)}</span>
-                    </div>
-                    {invoice.taxAmount > 0 && (
-                        <div className="flex justify-end gap-12 text-muted-foreground">
-                            <span>ITBIS</span>
-                            <span className="w-24 font-mono">{formatPrice(invoice.taxAmount)}</span>
-                        </div>
-                    )}
-                    <div className="flex justify-end gap-12 font-bold text-base border-t pt-2 mt-2 text-foreground">
-                        <span>Total</span>
-                        <span className="w-24 font-mono text-lg">{formatPrice(invoice.total)}</span>
-                    </div>
-                </div>
             </section>
-
-            {/* Acciones básicas cuando los formularios están cerrados */}
-            {!isClosed && !showPayForm && !showCancelForm && (
-                <div className="rounded-xl border bg-muted/20 p-4 flex items-center justify-between gap-4">
-                    <div className="text-sm">
-                        <span className="text-muted-foreground">Pendiente de cobro: </span>
-                        <span className="font-bold text-primary text-base ml-1">{formatPrice(remaining)}</span>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button onClick={handleOpenPayForm} className="px-6">
-                            Proceder a Caja
-                        </Button>
-                        <Button variant="outline" className="text-destructive hover:bg-destructive/10" onClick={handleOpenCancelForm}>
-                            Anular Factura
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* Modulo de Cancelación Inline */}
-            {showCancelForm && (
-                <div className="rounded-lg border border-destructive/30 bg-card p-5 space-y-4 shadow-sm">
-                    <div>
-                        <h3 className="text-lg font-semibold tracking-tight text-destructive">Anular factura</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            ¿Está seguro de que desea anular esta factura? Esta acción es irreversible.
-                        </p>
-                    </div>
-                    <form onSubmit={handleCancelInvoice} className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={() => setShowCancelForm(false)}>
-                            Descartar
-                        </Button>
-                        <Button type="submit" variant="destructive" disabled={saving}>
-                            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirmar Anulación"}
-                        </Button>
-                    </form>
-                </div>
-            )}
         </div>
     );
 }
