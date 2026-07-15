@@ -78,7 +78,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
     const [showA4Prompt, setShowA4Prompt] = useState(false);
     const [isA4Mode, setIsA4Mode] = useState(false);
-    const [triggerPrint, setTriggerPrint] = useState(false); // Controls print timing
 
     const [activeMethod, setActiveMethod] = useState<PaymentMethod>("cash");
     const [cashAmount, setCashAmount] = useState<string>("");
@@ -118,34 +117,31 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         });
     }, [tenantId, invoiceId, paidAmount]);
 
-    const contentRef = useRef<HTMLDivElement>(null);
+const contentRef = useRef<HTMLDivElement>(null);
 
-    // FIXED: Use the universally compatible "content" callback function configuration
-    const reactToPrintFn = useReactToPrint({ 
-        content: () => contentRef.current,
-        onAfterPrint: () => {
-            if (!isA4Mode) {
-                setShowA4Prompt(true);
-            } else {
-                setIsA4Mode(false);
-            }
+const reactToPrintFn = useReactToPrint({ 
+    // Pass the ref directly (TypeScript will validate this against HTMLDivElement)
+    contentRef: contentRef, 
+    onAfterPrint: () => {
+        if (!isA4Mode) {
+            setShowA4Prompt(true);
+        } else {
+            setIsA4Mode(false);
         }
-    });
+    }
+});
 
     // Manejador que se ejecuta si el usuario presiona "Sí" en el Popup A4
     const handleConfirmA4Print = () => {
         setShowA4Prompt(false);
         setIsA4Mode(true);
-        setTriggerPrint(true); // Signal that we are ready to print A4 layout
     };
 
-    // FIXED: Triggers print only after React updates the DOM with the new isA4Mode class
     useEffect(() => {
-        if (triggerPrint) {
+        if (isA4Mode) {
             reactToPrintFn();
-            setTriggerPrint(false);
         }
-    }, [triggerPrint, isA4Mode]);
+    }, [isA4Mode]);
 
     if (loading) {
         return (
@@ -160,7 +156,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             <div className="flex h-64 flex-col items-center justify-center gap-4 text-muted-foreground">
                 <AlertTriangle className="h-8 w-8" />
                 <p>Factura no encontrada.</p>
-                <Button variant="outline" asChild>
+                <Button variant="outline" >
                     <Link href="/facturacion/lista">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                     </Link>
@@ -250,6 +246,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             router.refresh();
         } catch {
             toast.error("No se pudo registrar el pago");
+            reactToPrintFn();
         } finally {
             setSaving(false);
         }
@@ -290,16 +287,16 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* FIXED: Removed the "hidden" div wrapper and styled it to be invisible but physically present in the DOM */}
-            <div className="absolute top-0 left-0 w-0 h-0 overflow-hidden pointer-events-none opacity-0">
+            {/* Contenedor invisible para impresión física/PDF */}
+            <div className="hidden">
                 <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    <MedicalInvoice />
+                    <MedicalInvoice/>
                 </div>
             </div>
 
             {/* Header original */}
             <div className="flex items-center justify-between">
-                <Button variant="ghost" size="sm" asChild>
+                <Button variant="ghost" size="sm" >
                     <Link href="/facturacion/lista">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Facturas
                     </Link>
@@ -611,7 +608,44 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                         ))}
                     </TableBody>
                 </Table>
+
+                <div className="border-t px-6 py-4 space-y-1.5 text-sm text-right bg-muted/10">
+                    <div className="flex justify-end gap-12 text-muted-foreground">
+                        <span>Subtotal</span>
+                        <span className="w-24 font-mono">{formatPrice(invoice.subtotal)}</span>
+                    </div>
+                    {invoice.taxAmount > 0 && (
+                        <div className="flex justify-end gap-12 text-muted-foreground">
+                            <span>ITBIS</span>
+                            <span className="w-24 font-mono">{formatPrice(invoice.taxAmount)}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-12 font-bold text-base border-t pt-2 mt-2 text-foreground">
+                        <span>Total</span>
+                        <span className="w-24 font-mono text-lg">{formatPrice(invoice.total)}</span>
+                    </div>
+                </div>
             </section>
+
+            {/* Acciones básicas cuando los formularios están cerrados */}
+            {!isClosed && !showPayForm && !showCancelForm && (
+                <div className="rounded-xl border bg-muted/20 p-4 flex items-center justify-between gap-4">
+                    <div className="text-sm">
+                        <span className="text-muted-foreground">Pendiente de cobro: </span>
+                        <span className="font-bold text-primary text-base ml-1">{formatPrice(remaining)}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button onClick={handleOpenPayForm} className="px-6">
+                            Proceder a Caja
+                        </Button>
+                    </div>
+                </div>
+            )}
+            <div className="hidden">
+                <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
+                    <InvoiceComponent/>
+                </div>
+            </div>
         </div>
     );
 }
