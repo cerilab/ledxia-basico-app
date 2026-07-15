@@ -117,19 +117,19 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         });
     }, [tenantId, invoiceId, paidAmount]);
 
-const contentRef = useRef<HTMLDivElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
 
-const reactToPrintFn = useReactToPrint({ 
-    // Pass the ref directly (TypeScript will validate this against HTMLDivElement)
-    contentRef: contentRef, 
-    onAfterPrint: () => {
-        if (!isA4Mode) {
-            setShowA4Prompt(true);
-        } else {
-            setIsA4Mode(false);
+    const reactToPrintFn = useReactToPrint({
+        // Pass the ref directly (TypeScript will validate this against HTMLDivElement)
+        contentRef: contentRef,
+        onAfterPrint: () => {
+            if (!isA4Mode) {
+                setShowA4Prompt(true);
+            } else {
+                setIsA4Mode(false);
+            }
         }
-    }
-});
+    });
 
     // Manejador que se ejecuta si el usuario presiona "Sí" en el Popup A4
     const handleConfirmA4Print = () => {
@@ -331,7 +331,7 @@ const reactToPrintFn = useReactToPrint({
             {/* Formulario de Caja Estilo Completo */}
             {!isClosed && showPayForm && (
                 <div className="bg-slate-50/50 dark:bg-zinc-900/40 rounded-xl border p-6 space-y-6 shadow-sm animate-in fade-in-50 duration-200">
-                    
+
                     {/* Fila superior informativa */}
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
                         <div className="flex items-center gap-6">
@@ -643,7 +643,12 @@ const reactToPrintFn = useReactToPrint({
             )}
             <div className="hidden">
                 <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    <InvoiceComponent/>
+                    {/* Si está en modo A4, renderiza la factura médica; de lo contrario, el ticket original */}
+                    {isA4Mode ? (
+                        <MedicalInvoice />
+                    ) : (
+                        <InvoiceComponent />
+                    )}
                 </div>
             </div>
         </div>
