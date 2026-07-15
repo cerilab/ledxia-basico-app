@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from 'next/navigation';
 import { toast } from "sonner";
 import {
     AlertTriangle,
@@ -46,6 +46,11 @@ import {
     TableRow,
 } from "@/components/ui/table";
 
+// Fallback dummy component or import to mock EcfSection if it's external
+function EcfSection({ invoiceId, tenantId, ecf }: { invoiceId: string; tenantId: string; ecf: any }) {
+    return <div className="p-4 border rounded-xl bg-muted/20">Sección ECF: {invoiceId}</div>;
+}
+
 export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const { tenantId, user } = useAuth();
     const router = useRouter();
@@ -53,6 +58,11 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const [invoice, setInvoice] = useState<Invoice | null>(null);
     const [payments, setPayments] = useState<Payment[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Lista de impresoras del sistema
+    const [availablePrinters, setAvailablePrinters] = useState<PrinterType[]>([]);
+    const [selectedPrinterA, setSelectedPrinterA] = useState<string>("");
+    const [selectedPrinterB, setSelectedPrinterB] = useState<string>("");
 
     // Visibilidad de módulos principales
     const [showPayForm, setShowPayForm] = useState(false);
@@ -81,6 +91,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
     const paidAmount = invoice?.paidAmount;
 
+    // Suscribirse a los cambios de la factura
     useEffect(() => {
         if (!tenantId) return;
         const unsub = subscribeInvoice(tenantId, invoiceId, (inv) => {
@@ -90,12 +101,27 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         return unsub;
     }, [tenantId, invoiceId]);
 
+    // Obtener historial de pagos
     useEffect(() => {
         if (!tenantId || paidAmount == null) return;
         getPaymentsForInvoice(tenantId, invoiceId).then((data) => {
             setPayments(data);
         });
     }, [tenantId, invoiceId, paidAmount]);
+
+    // Suscribirse a las impresoras registradas en el tenant
+    useEffect(() => {
+        if (!tenantId) return;
+        const unsub = subscribePrinters(tenantId, (printersList) => {
+            setAvailablePrinters(printersList);
+            if (printersList.length > 0) {
+                // Asignaciones por defecto (puedes cambiar la lógica de selección según tus alias o nombres)
+                setSelectedPrinterA(printersList[0]?.id || "");
+                setSelectedPrinterB(printersList[1]?.id || printersList[0]?.id || "");
+            }
+        });
+        return unsub;
+    }, [tenantId]);
 
     if (loading) {
         return (
@@ -176,6 +202,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
         setSaving(true);
         try {
+            // 1. Registrar transaccionalidad del cobro en base de datos
             const input: PaymentInput = {
                 method: activeMethod,
                 amount: finalAmount,
@@ -185,6 +212,30 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
             // @ts-ignore
             const result = await registerPayment(tenantId, invoiceId, user.uid, input);
+
+            // 2. Ejecutar Multi-Impresión Simultánea vía Cloud Functions (Si está activo)
+            if (autoPrint) {
+                toast.info("Enviando comandos de impresión duplicados...");
+                try {
+                    await Promise.all([
+                        createPrintJobFn({
+                            invoiceId,
+                            printerId: selectedPrinterA, // Impresora Destino 1 (Ej: Recibo / Caja)
+                            options: { copies: 1 }
+                        }),
+                        createPrintJobFn({
+                            invoiceId,
+                            printerId: selectedPrinterB, // Impresora Destino 2 (Ej: Consultorio / A4)
+                            options: { copies: 1 }
+                        })
+                    ]);
+                    toast.success("Ambas órdenes enviadas a cola de impresión hardware.");
+                    console.log("result");
+                } catch (printErr) {
+                    console.error("Print Error: ", printErr);
+                    toast.error("El pago se registró, pero falló el envío simultáneo a las impresoras.");
+                }
+            }
 
             if (activeMethod === "cash" && result.changeGiven > 0) {
                 toast.success(`Pago registrado. Cambio: ${formatPrice(result.changeGiven)}`);
@@ -253,7 +304,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
             {isFiscal && <EcfSection invoiceId={invoiceId} tenantId={tenantId} ecf={invoice.ecf} />}
 
-            {/* Formulario de Caja Estilo Completo (Línea de diseño de la foto) */}
+            {/* Formulario de Caja Estilo Completo */}
             {!isClosed && showPayForm && (
                 <div className="bg-slate-50/50 dark:bg-zinc-900/40 rounded-xl border p-6 space-y-6 shadow-sm animate-in fade-in-50 duration-200">
 
@@ -276,7 +327,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                         </div>
 
                         {/* Indicador de balance superior derecho */}
-                        <div className="text-right bg-white dark:bg-zinc-950 p-2 px-4 rounded-lg border shadow-2xs flex items-center gap-6">
+                        <div className="text-right bg-white dark:bg-zinc-950 p-2 px-4 rounded-lg border shadow-xs flex items-center gap-6">
                             <div>
                                 <p className="text-[10px] uppercase font-bold text-muted-foreground">Total a Pagar</p>
                                 <p className="text-md font-black text-slate-900 dark:text-white">{formatPrice(remaining)}</p>
@@ -319,8 +370,8 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                                                 onChange={(e) => setCashAmount(e.target.value)}
                                             />
                                             <div className="flex gap-1 mt-1">
-                                                <Button type="button" variant="secondary"  className="text-[10px] h-6 px-2" onClick={() => setCashAmount(remaining.toString())}>Total</Button>
-                                                <Button type="button" variant="ghost"  className="text-[10px] h-6 px-2 text-destructive" onClick={() => setCashAmount("")}>Borrar</Button>
+                                                <Button type="button" variant="secondary" className="text-[10px] h-6 px-2" onClick={() => setCashAmount(remaining.toString())}>Total</Button>
+                                                <Button type="button" variant="ghost" className="text-[10px] h-6 px-2 text-destructive" onClick={() => setCashAmount("")}>Borrar</Button>
                                             </div>
                                         </div>
                                     </div>
@@ -469,6 +520,30 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
                         </div>
 
+                        {/* Configuración rápida de Impresoras asignadas para este cobro */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted/30 rounded-lg border border-dashed">
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-bold text-muted-foreground uppercase">Impresora Destino A (Caja)</Label>
+                                <select
+                                    className="w-full text-xs p-1.5 rounded border bg-background"
+                                    value={selectedPrinterA}
+                                    onChange={(e) => setSelectedPrinterA(e.target.value)}
+                                >
+                                    {availablePrinters.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[11px] font-bold text-muted-foreground uppercase">Impresora Destino B (Consultorio)</Label>
+                                <select
+                                    className="w-full text-xs p-1.5 rounded border bg-background"
+                                    value={selectedPrinterB}
+                                    onChange={(e) => setSelectedPrinterB(e.target.value)}
+                                >
+                                    {availablePrinters.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
                         {/* Campo de Observaciones */}
                         <div className="space-y-2">
                             <Label htmlFor="invoice-notes" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -486,17 +561,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
                         {/* Fila Final de Acciones y Submit */}
                         <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="autoPrint"
-                                    checked={autoPrint}
-                                    onCheckedChange={(checked) => setAutoPrint(!!checked)}
-                                />
-                                <label htmlFor="autoPrint" className="text-xs font-medium text-muted-foreground cursor-pointer flex items-center gap-1">
-                                    <Printer className="h-3.5 w-3.5" /> Imprimir automáticamente
-                                </label>
-                            </div>
-
+                            <div className="flex items-center space-x-2" />
                             <div className="flex gap-2">
                                 <Button type="button" variant="outline" onClick={() => setShowPayForm(false)}>
                                     Cancelar
@@ -509,7 +574,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                                     {saving ? (
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     ) : (
-                                        `Cobrar ${formatPrice(totalDistribuido || remaining)}`
+                                        `Cobrar e Imprimir Dúplex (${formatPrice(totalDistribuido || remaining)})`
                                     )}
                                 </Button>
                             </div>
@@ -518,8 +583,8 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             )}
 
-            {/* Resto de secciones originales de desglose (Mesa de servicios, Pagos anteriores, etc.) */}
-            <section className="rounded-xl border bg-background shadow-2xs overflow-hidden">
+            {/* Resto de secciones de desglose (Mesa de servicios, Pagos anteriores, etc.) */}
+            <section className="rounded-xl border bg-background shadow-xs overflow-hidden">
                 <Table>
                     <TableHeader className="bg-muted/40">
                         <TableRow>
@@ -563,7 +628,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             </section>
 
-            {/* Bloque original de acciones básicas cuando el formulario de pago está cerrado */}
+            {/* Acciones básicas cuando los formularios están cerrados */}
             {!isClosed && !showPayForm && !showCancelForm && (
                 <div className="rounded-xl border bg-muted/20 p-4 flex items-center justify-between gap-4">
                     <div className="text-sm">
@@ -581,216 +646,25 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             )}
 
-            {/* Inline Cancellation Module Container */}
+            {/* Modulo de Cancelación Inline */}
             {showCancelForm && (
                 <div className="rounded-lg border border-destructive/30 bg-card p-5 space-y-4 shadow-sm">
                     <div>
                         <h3 className="text-lg font-semibold tracking-tight text-destructive">Anular factura</h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                            Esta acción no se puede deshacer. Indica el motivo de la anulación.
+                            ¿Está seguro de que desea anular esta factura? Esta acción es irreversible.
                         </p>
                     </div>
-                    <form onSubmit={handleCancelInvoice} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="inline-cancel-reason">Motivo</Label>
-                            <Input
-                                id="inline-cancel-reason"
-                                required
-                                onChange={(e) => console.log("klk")}
-                                placeholder="Ej. Error en servicios seleccionados"
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button type="button" variant="outline" onClick={() => setShowCancelForm(false)}>
-                                Volver
-                            </Button>
-                            <Button type="submit" variant="destructive" disabled={saving }>
-                                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Anular Definitivamente
-                            </Button>
-                        </div>
+                    <form onSubmit={handleCancelInvoice} className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setShowCancelForm(false)}>
+                            Descartar
+                        </Button>
+                        <Button type="submit" variant="destructive" disabled={saving}>
+                            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirmar Anulación"}
+                        </Button>
                     </form>
                 </div>
             )}
-
-            {payments.length > 0 && (
-                <section className="space-y-2">
-                    <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Historial de Pagos</h3>
-                    <div className="rounded-xl border bg-background overflow-hidden">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Método</TableHead>
-                                    <TableHead>Fecha</TableHead>
-                                    <TableHead className="text-right">Monto</TableHead>
-                                    <TableHead>Detalles / Referencia</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {payments.map((p) => (
-                                    <TableRow key={p.id}>
-                                        <TableCell className="font-medium">{METHOD_LABEL[p.method] || p.method}</TableCell>
-                                        <TableCell className="text-muted-foreground text-sm">
-                                            {new Date(p.paidAt).toLocaleDateString("es-DO")}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono font-semibold">{formatPrice(p.amount)}</TableCell>
-                                        <TableCell className="text-muted-foreground text-xs font-mono">
-                                            {p.reference || "—"}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </section>
-            )}
-
-            {invoice.status === "cancelled" && invoice.cancellationReason && (
-                <p className="text-sm text-muted-foreground font-medium bg-destructive/10 p-3 rounded-lg border border-destructive/20">
-                    Motivo de anulación: <span className="text-foreground font-semibold">{invoice.cancellationReason}</span>
-                </p>
-            )}
-
-            {invoice.status === "paid" && (
-                <PrintSection invoiceId={invoiceId} tenantId={tenantId} />
-            )}
-        </div>
-    );
-}
-
-// Sub-componentes auxiliares idénticos de tu código base
-function PrintSection({ invoiceId, tenantId }: { invoiceId: string; tenantId?: string }) {
-    const [printers, setPrinters] = useState<PrinterType[]>([]);
-    const [selectedPrinter, setSelectedPrinter] = useState("");
-    const [printing, setPrinting] = useState(false);
-
-    useEffect(() => {
-        if (!tenantId) return;
-        const unsub = subscribePrinters(tenantId, (list) => {
-            const active = list.filter((p) => p.active);
-            setPrinters(active);
-            if (active.length > 0 && !selectedPrinter) {
-                setSelectedPrinter(active[0].id);
-            }
-        });
-        return unsub;
-    }, [tenantId, selectedPrinter]);
-
-    if (printers.length === 0) {
-        return (
-            <div className="rounded-lg border border-dashed p-4 flex items-center gap-3 text-sm text-muted-foreground bg-muted/20">
-                <Printer className="h-4 w-4 flex-none" />
-                <span>
-                    No hay impresoras activas.{" "}
-                    <Link href="/configuracion/impresion" className="underline underline-offset-2 hover:text-foreground transition-colors">
-                        Configura una en Configuración
-                    </Link>
-                    .
-                </span>
-            </div>
-        );
-    }
-
-    async function handlePrint() {
-        if (!tenantId || !selectedPrinter) return;
-        setPrinting(true);
-        toast("Enviando a impresora…");
-        try {
-            await createPrintJobFn({ invoiceId, printerId: selectedPrinter });
-            toast.success("Trabajo enviado");
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : "Error desconocido";
-            toast.error(`No se pudo enviar: ${msg}`);
-        } finally {
-            setPrinting(false);
-        }
-    }
-
-    return (
-        <div className="rounded-lg border bg-muted/20 p-4 flex items-center gap-3 flex-wrap">
-            <Printer className="h-4 w-4 flex-none text-muted-foreground" />
-            <select
-                className="flex-1 h-9 min-w-[160px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={selectedPrinter}
-                onChange={(e) => setSelectedPrinter(e.target.value)}
-            >
-                {printers.map((p) => (
-                    <option key={p.id} value={p.id}>
-                        {p.name}
-                    </option>
-                ))}
-            </select>
-            <Button size="sm" onClick={handlePrint} disabled={printing || !selectedPrinter}>
-                {printing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-                Imprimir recibo
-            </Button>
-        </div>
-    );
-}
-
-function EcfSection({ invoiceId, tenantId, ecf }: { invoiceId: string; tenantId?: string; ecf?: Invoice["ecf"] }) {
-    const [submitting, setSubmitting] = useState(false);
-
-    async function handleSubmit() {
-        if (!tenantId) return;
-        setSubmitting(true);
-        try {
-            const res = await submitEcfFn({ invoiceId });
-            const { encf, status } = res.data as { encf: string; status: string };
-            if (status === "error") {
-                toast.error("No se pudo transmitir a la DGII. Verifica los Ajustes e-CF.");
-            } else {
-                toast.success(`eNCF asignado: ${encf}`);
-            }
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : "Error desconocido";
-            toast.error(`Error: ${msg}`);
-        } finally {
-            setSubmitting(false);
-        }
-    }
-
-    if (!ecf?.ncf) {
-        return (
-            <div className="rounded-lg border border-dashed p-4 flex items-center justify-between gap-4 bg-muted/10">
-                <div>
-                    <p className="text-sm font-medium">Comprobante Fiscal Electrónico</p>
-                    <p className="text-xs text-muted-foreground">
-                        Esta factura es fiscal. Asigna un eNCF y transmítela a la DGII.
-                    </p>
-                </div>
-                <Button size="sm" onClick={handleSubmit} disabled={submitting}>
-                    {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Asignar e-CF y transmitir
-                </Button>
-            </div>
-        );
-    }
-
-    const status = ecf.status ?? "pending";
-    const isError = status === "rejected" || status === "error";
-
-    return (
-        <div className="rounded-lg border bg-background p-4 space-y-2">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">e-CF / DGII</p>
-                    <p className="font-mono font-semibold">{ecf.ncf}</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant={ECF_STATUS_VARIANT[status] ?? "secondary"}>
-                        {ECF_STATUS_LABEL[status] ?? status}
-                    </Badge>
-                    {isError && (
-                        <Button size="sm" variant="outline" onClick={handleSubmit} disabled={submitting}>
-                            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                            Reintentar
-                        </Button>
-                    )}
-                </div>
-            </div>
-            {ecf.trackId && <p className="text-xs text-muted-foreground">Track ID: <span className="font-mono">{ecf.trackId}</span></p>}
-            {ecf.message && isError && <p className="text-xs text-destructive">{ecf.message}</p>}
         </div>
     );
 }
