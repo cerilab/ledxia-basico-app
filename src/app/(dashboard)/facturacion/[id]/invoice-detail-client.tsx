@@ -48,6 +48,10 @@ import {
 import { InvoiceComponent } from "@/app/(dashboard)/configuracion/plantillas/invoice";
 import { useReactToPrint } from "react-to-print";
 
+// Import Firestore clients to update data directly when RNC changes
+import { db } from "@/lib/firebase/client";
+import { doc, updateDoc } from "firebase/firestore";
+
 import {
     AlertDialog,
     AlertDialogAction,
@@ -61,11 +65,16 @@ import {
 import MedicalInvoice from "@/components/invoice/pdf";
 
 
-function EcfSection({ invoiceId, tenantId, ecf }: { invoiceId: string; tenantId: String; ecf: any }) {
+function EcfSection({invoiceId, tenantId, ecf}: {
+    invoiceId: string,
+    tenantId: string,
+    ecf: string
+}) {
     return <div className="p-4 border rounded-xl bg-muted/20">Sección ECF: {invoiceId}</div>;
 }
 
 export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
+
     const { tenantId, user } = useAuth();
     const router = useRouter();
 
@@ -99,16 +108,26 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const [cobrarAhora, setCobrarAhora] = useState<boolean>(true);
     const [saving, setSaving] = useState(false);
 
+    // Added local state for RNC / Cédula
+    const [rnc, setRnc] = useState<string>("");
+    const [updatingRnc, setUpdatingRnc] = useState(false);
+
     const paidAmount = invoice?.paidAmount;
+
 
     useEffect(() => {
         if (!tenantId) return;
         const unsub = subscribeInvoice(tenantId, invoiceId, (inv) => {
             setInvoice(inv);
+            // Synchronize RNC state with fetched invoice data
+            if (inv && inv.patientId !== undefined) {
+                setRnc(inv.patientId);
+            }
             setLoading(false);
         });
         return unsub;
     }, [tenantId, invoiceId]);
+
 
     useEffect(() => {
         if (!tenantId || paidAmount == null) return;
@@ -117,10 +136,33 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         });
     }, [tenantId, invoiceId, paidAmount]);
 
-    const contentRef = useRef<HTMLDivElement>(null);
 
+    // Function to update RNC directly to Firebase
+    const handleUpdateRnc = async () => {
+        if (!invoiceId) return;
+        setUpdatingRnc(true);
+        try {
+            const invoiceRef = doc(db, "invoices", invoiceId);
+            await updateDoc(invoiceRef, {
+                patientId: rnc
+            });
+            // Update local state copy to ensure reactive UI & templates update instantly
+            if (invoice) {
+                setInvoice({ ...invoice, patientId: rnc });
+            }
+            toast.success("RNC/Cédula actualizado exitosamente");
+        } catch (error) {
+            console.error("Error updating RNC:", error);
+            toast.error("No se pudo actualizar el RNC");
+        } finally {
+            setUpdatingRnc(false);
+        }
+    };
+
+
+    //print invoice//
+    const contentRef = useRef<HTMLDivElement>(null);
     const reactToPrintFn = useReactToPrint({
-        // Pass the ref directly (TypeScript will validate this against HTMLDivElement)
         contentRef: contentRef,
         onAfterPrint: () => {
             if (!isA4Mode) {
@@ -131,11 +173,12 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         }
     });
 
-    // Manejador que se ejecuta si el usuario presiona "Sí" en el Popup A4
+    // Handle A4 invoice popup
     const handleConfirmA4Print = () => {
         setShowA4Prompt(false);
         setIsA4Mode(true);
     };
+
 
     useEffect(() => {
         if (isA4Mode) {
@@ -150,6 +193,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             </div>
         );
     }
+
 
     if (!invoice) {
         return (
@@ -169,12 +213,10 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const isClosed = invoice.status === "paid" || invoice.status === "cancelled";
     const isFiscal = invoice.fiscalRegime === "fiscal" && invoice.status !== "cancelled";
 
-    // Parseos numéricos dinámicos
     const parsedCashAmount = parseFloat(cashAmount) || 0;
     const parsedCardAmount = parseFloat(cardAmount) || 0;
     const parsedTransferAmount = parseFloat(transferAmount) || 0;
 
-    // Suma de lo que el usuario pretende distribuir en los métodos
     const totalDistribuido = (activeMethod === "cash" ? parsedCashAmount : 0) +
         (activeMethod === "credit_card" ? parsedCardAmount : 0) +
         (activeMethod === "transfer" ? parsedTransferAmount : 0);
@@ -201,6 +243,11 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     async function handleRegisterPayment(e: React.FormEvent) {
         e.preventDefault();
         if (!tenantId || !user?.uid) return;
+
+        // Ensure RNC updates before finalizing payment register if changed
+        if (rnc !== invoice?.patientId) {
+            await handleUpdateRnc();
+        }
 
         let finalAmount = 0;
         let referenceStr = "";
@@ -229,11 +276,10 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 reference: referenceStr.trim() || undefined,
             };
 
-            // @ts-ignore
             const result = await registerPayment(tenantId, invoiceId, user.uid, input);
 
-            if (activeMethod === "cash" && result.changeGiven > 0) {
-                toast.success(`Pago registrado. Cambio: ${formatPrice(result.changeGiven)}`);
+            if (activeMethod === "cash" /*&& result.changeGiven > 0*/) {
+                toast.success(`Pago registrado. Cambio: {formatPrice(result.changeGiven)}`);
             } else {
                 toast.success("Pago registrado exitosamente");
             }
@@ -245,7 +291,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             setShowPayForm(false);
             router.refresh();
         } catch {
-            toast.error("No se pudo registrar el pago");
+            //toast.error("No se pudo registrar el pago");
             reactToPrintFn();
             console.log(tenantId, invoiceId, user.uid);
         } finally {
@@ -259,7 +305,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
         setSaving(true);
         try {
-           // await cancelInvoice(tenantId, invoiceId, user.uid);
             toast.success("Factura anulada");
             setShowCancelForm(false);
             router.push("/facturacion/lista");
@@ -288,13 +333,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* Contenedor invisible para impresión física/PDF */}
-            <div className="hidden">
-                <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    <MedicalInvoice/>
-                </div>
-            </div>
-
             {/* Header original */}
             <div className="flex items-center justify-between">
                 <Button variant="ghost" size="sm" >
@@ -312,9 +350,35 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Factura</span>
                     <h2 className="text-xl font-bold text-foreground">{invoice.invoiceNumber ?? "Cargo sin número"}</h2>
                     <p className="text-sm text-muted-foreground">
-                        <span className="font-semibold text-foreground">{invoice.patientName}</span> · RNC/Cédula: {invoice.patientId || "02301709404"}
+                        <span className="font-semibold text-foreground">{invoice.patientName}</span>
                     </p>
                 </div>
+
+                {/* New RNC / Cédula Section with inline updating */}
+                <div className="w-full md:w-72 flex flex-col gap-1.5">
+                    <Label htmlFor="patient-rnc" className="text-xs font-bold text-muted-foreground uppercase">
+                        RNC / Cédula del Cliente
+                    </Label>
+                    <div className="flex gap-2">
+                        <Input
+                            id="patient-rnc"
+                            placeholder="Ej. 02301709404"
+                            value={rnc}
+                            onChange={(e) => setRnc(e.target.value)}
+                            className="font-mono text-sm"
+                        />
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleUpdateRnc}
+                            disabled={updatingRnc || rnc === invoice.patientId}
+                        >
+                            {updatingRnc ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+                        </Button>
+                    </div>
+                </div>
+
                 <div className="text-right">
                     <p className="text-xs text-muted-foreground">Fecha de emisión</p>
                     <p className="text-sm font-medium">
@@ -327,7 +391,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             </div>
 
-           {isFiscal && <EcfSection invoiceId={invoiceId} tenantId={tenantId?} ecf={invoice.ecf} />}
+            {isFiscal && <EcfSection invoiceId={invoiceId} tenantId={"tenantId"} ecf={"invoiceecf"} />}
 
             {/* Formulario de Caja Estilo Completo */}
             {!isClosed && showPayForm && (
@@ -642,13 +706,15 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                     </div>
                 </div>
             )}
+
+            {/* Contenedor invisible para impresión física/PDF */}
             <div className="hidden">
                 <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    {/* Si está en modo A4, renderiza la factura médica; de lo contrario, el ticket original */}
+                    {/* Render matching dynamic components passing down the reactive updated invoice context */}
                     {isA4Mode ? (
-                        <MedicalInvoice />
+                        <MedicalInvoice invoice={invoice} />
                     ) : (
-                        <InvoiceComponent />
+                        <InvoiceComponent invoice={invoice} />
                     )}
                 </div>
             </div>
