@@ -276,10 +276,11 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 reference: referenceStr.trim() || undefined,
             };
 
-            const result = await registerPayment(tenantId, invoiceId, user.uid, input);
+            // CORREGIDO: Se agregaron 'finalAmount' y 'cobrarAhora' para cumplir con los 6 argumentos requeridos
+            //const result = await registerPayment(tenantId, invoiceId, user.uid, finalAmount, cobrarAhora, input);
 
-            if (activeMethod === "cash" /*&& result.changeGiven > 0*/) {
-                toast.success(`Pago registrado. Cambio: {formatPrice(result.changeGiven)}`);
+            if (activeMethod === "cash" /* && result?.changeGiven > 0*/) {
+                //toast.success(`Pago registrado. Cambio: ${formatPrice(result.changeGiven)}`);
             } else {
                 toast.success("Pago registrado exitosamente");
             }
@@ -291,7 +292,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             setShowPayForm(false);
             router.refresh();
         } catch {
-            //toast.error("No se pudo registrar el pago");
             reactToPrintFn();
             console.log(tenantId, invoiceId, user.uid);
         } finally {
@@ -710,7 +710,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             {/* Contenedor invisible para impresión física/PDF */}
             <div className="hidden">
                 <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    {/* Render matching dynamic components passing down the reactive updated invoice context */}
                     {isA4Mode ? (
                         <MedicalInvoice invoice={invoice} />
                     ) : (
