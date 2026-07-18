@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { InvoiceComponent } from "./invoice";
 import MedicalInvoice from "@/components/invoice/pdf";
+import {invoicesCol} from "@/lib/data/billing";
 
 function Toggle({
     checked,
@@ -313,7 +314,7 @@ useEffect(() => {
                         <div className="bg-zinc-100 p-4 rounded-xl border border-zinc-200 shadow-inner max-h-[85vh] overflow-y-auto print:bg-white print:p-0 print:border-none print:shadow-none print:overflow-visible">
                             <div className="bg-white shadow-lg border border-zinc-300 p-8 mx-auto w-full max-w-[210mm] min-h-[297mm] rounded-sm print:shadow-none print:border-none print:p-0">
 
-                                <MedicalInvoice/>
+                                {/*<MedicalInvoice invoice={undefined}/>*/}
                                 <InvoiceComponent invoice={undefined} payments={undefined} templateConfig={form} />
                             </div>
                         </div>
