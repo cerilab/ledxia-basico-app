@@ -120,8 +120,8 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         const unsub = subscribeInvoice(tenantId, invoiceId, (inv) => {
             setInvoice(inv);
             // Synchronize RNC state with fetched invoice data
-            if (inv && inv.patientId !== undefined) {
-                setRnc(inv.patientId);
+            if (inv && inv.Cedula !== undefined) {
+                setRnc(inv.Cedula);
             }
             setLoading(false);
         });
@@ -144,11 +144,11 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         try {
             const invoiceRef = doc(db, "invoices", invoiceId);
             await updateDoc(invoiceRef, {
-                patientId: rnc
+                patientRnc: rnc
             });
             // Update local state copy to ensure reactive UI & templates update instantly
             if (invoice) {
-                setInvoice({ ...invoice, patientId: rnc });
+                setInvoice({ ...invoice, Cedula: rnc });
             }
             toast.success("RNC/Cédula actualizado exitosamente");
         } catch (error) {
@@ -430,6 +430,75 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                         </div>
                     </div>
 
+                    
+            {/* Mesa de servicios */}
+            <section className="rounded-xl border bg-background shadow-xs overflow-hidden">
+                <Table>
+                    <TableHeader className="bg-muted/40">
+                        <TableRow>
+                            <TableHead>Servicio</TableHead>
+                            <TableHead className="text-center">Cant.</TableHead>
+                            <TableHead className="text-right">Precio</TableHead>
+                            <TableHead className="text-right">ITBIS</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {invoice.items.map((item, i) => (
+                            <TableRow key={i}>
+                                <TableCell className="font-medium">{item.description}</TableCell>
+                                <TableCell className="text-center">{item.quantity}</TableCell>
+                                <TableCell className="text-right">{formatPrice(item.unitPrice)}</TableCell>
+                                <TableCell className="text-right">
+                                    {item.taxRate > 0 ? formatPrice(item.taxAmount) : "—"}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">{formatPrice(item.total)}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+
+                <div className="border-t px-6 py-4 space-y-1.5 text-sm text-right bg-muted/10">
+                    <div className="flex justify-end gap-12 text-muted-foreground">
+                        <span>Subtotal</span>
+                        <span className="w-24 font-mono">{formatPrice(invoice.subtotal)}</span>
+                    </div>
+                    {invoice.taxAmount > 0 && (
+                        <div className="flex justify-end gap-12 text-muted-foreground">
+                            <span>ITBIS</span>
+                            <span className="w-24 font-mono">{formatPrice(invoice.taxAmount)}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-12 font-bold text-base border-t pt-2 mt-2 text-foreground">
+                        <span>Total</span>
+                        <span className="w-24 font-mono text-lg">{formatPrice(invoice.total)}</span>
+                    </div>
+                </div>
+            </section>
+            
+
+            
+            {/* Mesa de servicios */}
+            <section className="rounded-xl border bg-background shadow-xs overflow-hidden">
+
+                <div className="border-t px-6 py-4 space-y-1.5 text-sm text-right bg-muted/10">
+                    <div className="flex justify-end gap-12 text-muted-foreground">
+                        <span>Subtotal</span>
+                        <span className="w-24 font-mono">{formatPrice(invoice.subtotal)}</span>
+                    </div>
+                    {invoice.taxAmount > 0 && (
+                        <div className="flex justify-end gap-12 text-muted-foreground">
+                            <span>ITBIS</span>
+                            <span className="w-24 font-mono">{formatPrice(invoice.taxAmount)}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-12 font-bold text-base border-t pt-2 mt-2 text-foreground">
+                        <span>Total</span>
+                        <span className="w-24 font-mono text-lg">{formatPrice(invoice.total)}</span>
+                    </div>
+                </div>
+            </section>
+
                     <form onSubmit={handleRegisterPayment} className="space-y-6">
                         {/* Grid de Métodos de Pago Paralelos */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
@@ -551,7 +620,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                                 </div>
                             </div>
 
-                            {/* COLUMNA 3: TRANSFERENCIA */}
                             <div
                                 onClick={() => setActiveMethod("transfer")}
                                 className={`p-4 rounded-xl border bg-background transition-all cursor-pointer relative ${
@@ -608,7 +676,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
                         </div>
 
-                        {/* Campo de Observaciones */}
                         <div className="space-y-2">
                             <Label htmlFor="invoice-notes" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                                 Observación (Opcional)
@@ -646,51 +713,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                     </form>
                 </div>
             )}
-
-            {/* Mesa de servicios */}
-            <section className="rounded-xl border bg-background shadow-xs overflow-hidden">
-                <Table>
-                    <TableHeader className="bg-muted/40">
-                        <TableRow>
-                            <TableHead>Servicio</TableHead>
-                            <TableHead className="text-center">Cant.</TableHead>
-                            <TableHead className="text-right">Precio</TableHead>
-                            <TableHead className="text-right">ITBIS</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {invoice.items.map((item, i) => (
-                            <TableRow key={i}>
-                                <TableCell className="font-medium">{item.description}</TableCell>
-                                <TableCell className="text-center">{item.quantity}</TableCell>
-                                <TableCell className="text-right">{formatPrice(item.unitPrice)}</TableCell>
-                                <TableCell className="text-right">
-                                    {item.taxRate > 0 ? formatPrice(item.taxAmount) : "—"}
-                                </TableCell>
-                                <TableCell className="text-right font-semibold">{formatPrice(item.total)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-
-                <div className="border-t px-6 py-4 space-y-1.5 text-sm text-right bg-muted/10">
-                    <div className="flex justify-end gap-12 text-muted-foreground">
-                        <span>Subtotal</span>
-                        <span className="w-24 font-mono">{formatPrice(invoice.subtotal)}</span>
-                    </div>
-                    {invoice.taxAmount > 0 && (
-                        <div className="flex justify-end gap-12 text-muted-foreground">
-                            <span>ITBIS</span>
-                            <span className="w-24 font-mono">{formatPrice(invoice.taxAmount)}</span>
-                        </div>
-                    )}
-                    <div className="flex justify-end gap-12 font-bold text-base border-t pt-2 mt-2 text-foreground">
-                        <span>Total</span>
-                        <span className="w-24 font-mono text-lg">{formatPrice(invoice.total)}</span>
-                    </div>
-                </div>
-            </section>
 
             {/* Acciones básicas cuando los formularios están cerrados */}
             {!isClosed && !showPayForm && !showCancelForm && (
