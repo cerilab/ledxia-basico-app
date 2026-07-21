@@ -40,6 +40,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {useRetrieveServices} from "../queries/retrieve";
 import { useRouter } from "next/navigation";
+import { PatientFormDialog } from "../patients/patient-form-dialog";
+import { CompanyFormDialog } from "../companies/company-form-dialog";
 
 type Step = "patient" | "order";
 type ClientType = "person" | "company";
@@ -49,10 +51,6 @@ interface CartEntry {
   service: Service;
   item: ReturnType<typeof buildItem>;
 }
-
-// ==========================================
-// SUBCOMPONENTES REALES (Antes faltaban por implementar)
-// ==========================================
 
 function PartyChip({
   patient,
@@ -161,93 +159,6 @@ function CatPill({ active, label, count }: { active?: boolean; label: string; co
     </Badge>
   );
 }
-
-// Fallbacks de seguridad si no tienes creados los formularios inline aún
-function InlineCompanyForm({defaultName, onCancel, onSaved}: {
-    tenantId?: string;
-    defaultName: string;
-    onCancel: () => void;
-    onSaved: (c: Company) => void
-}) {
-    const handleSave = () => {
-        const nameInput = document.getElementById("tmp-cname") as HTMLInputElement;
-        // Assuming you might add an RNC input later, otherwise replace with a fallback string
-        const rncInput = document.getElementById("tmp-crnc") as HTMLInputElement;
-
-        if (nameInput) {
-            onSaved({
-                id: "temp-c-" + Date.now(),
-                name: nameInput.value,
-                rnc: rncInput ? rncInput.value : "",
-                active: true
-            });
-        }
-    };
-
-    return (
-        <div className="rounded-lg border bg-white p-3 dark:bg-slate-900 space-y-2">
-            <p className="text-xs text-muted-foreground">Formulario rápido de empresa:</p>
-            <Input id="tmp-cname" defaultValue={defaultName} placeholder="Nombre de la empresa" className="h-9" />
-
-            <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={onCancel}>
-                    Cancelar
-                </Button>
-                <Button size="sm" onClick={handleSave}>
-                    Guardar
-                </Button>
-            </div>
-        </div>
-    );
-}
-
-function InlinePatientForm({ onCancel, onSaved }: { tenantId?: string; companyMode: boolean; onCancel: () => void; onSaved: (p: Patient) => void }) {
-  return (
-    <div className="rounded-lg border bg-white p-4 dark:bg-slate-900 space-y-3">
-      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Nuevo Paciente</p>
-      <div className="grid grid-cols-2 gap-2">
-        <Input id="tmp-pname" placeholder="Nombre" className="h-9" />
-        <Input id="tmp-plast" placeholder="Apellido" className="h-9" />
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
-        <Button size="sm" onClick={() => onSaved({
-            active: false,
-            addressMunicipality: "",
-            addressProvince: "",
-            addressSector: "",
-            addressStreet: "",
-            affiliateNumber: "",
-            bloodType: "",
-            contractNumber: "",
-            createdAt: 0,
-            dob: "",
-            email: "",
-            emergencyContactName: "",
-            emergencyContactPhone: "",
-            emergencyContactRelationship: "",
-            familyHistory: "",
-            legalGuardian: "",
-            medicalHistory: "",
-            nationality: "",
-            nss: "",
-            passport: "",
-            patientCategory: undefined,
-            phoneHome: "",
-            phoneMobile: "",
-            sexAtBirth: undefined,
-            updatedAt: 0,
-            id: "temp-p-" + Date.now(), firstName: (document.getElementById("tmp-pname") as HTMLInputElement)?.value || "Paciente", lastName: (document.getElementById("tmp-plast") as HTMLInputElement)?.value || "Temporal", cedula: "" })}>Registrar</Button>
-      </div>
-    </div>
-  );
-}
-
-
-// ==========================================
-// COMPONENTE PRINCIPAL
-// ==========================================
-
 export function NewOrderSheet({
   open,
   onClose,
@@ -288,6 +199,12 @@ export function NewOrderSheet({
   const [submitting, setSubmitting] = useState(false);
 
   const route = useRouter();
+
+  
+  const [editing, setEditing] = useState<Patient | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [term, setTerm] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!tenantId || !open) return;
@@ -678,17 +595,17 @@ function PatientStep(props: {
               Empresa que factura esta orden
             </Label>
             {showCompanyForm ? (
-                <InlineCompanyForm
-                    // Remove or comment this line out if tenantId doesn't exist in this file
-                    // tenantId={tenantId}
-                    defaultName={companyTerm.trim()}
-                    onCancel={() => setShowCompanyForm(false)}
-                    onSaved={(c) => {
-                        setSelectedCompany(c);
-                        setCompanyTerm("");
-                        setShowCompanyForm(false);
-                    }}
-                />
+                <CompanyFormDialog
+                // Remove or comment this line out if tenantId doesn't exist in this file
+                // tenantId={tenantId}
+                defaultName={companyTerm.trim()}
+                onSaved={(c) => {
+                  setSelectedCompany(c);
+                  setCompanyTerm("");
+                  setShowCompanyForm(false);
+                } } open={false} onOpenChange={function (v: boolean): void {
+                  throw new Error("Function not implemented.");
+                } }                />
             ) : selectedCompany ? (
               <SelectedCard
                 title={selectedCompany.name}
@@ -767,21 +684,6 @@ function PatientStep(props: {
 
           {patientTerm.trim().length >= 2 && (
             <div className="overflow-hidden rounded-xl border bg-white dark:bg-slate-900">
-              {filteredPatients.length === 0 ? (
-                <div className="px-4 py-6 text-center">
-                  <div className="mb-3 text-sm text-muted-foreground">
-                    No se encontró ningún paciente con &quot;{patientTerm}&quot;
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={() => setShowPatientForm(true)}
-                    className="bg-sky-600 text-white hover:bg-sky-700"
-                  >
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Registrar nuevo paciente
-                  </Button>
-                </div>
-              ) : (
                 <div className="max-h-80 divide-y overflow-y-auto">
                   {filteredPatients.map((p) => (
                     <button
@@ -810,22 +712,22 @@ function PatientStep(props: {
                     </button>
                   ))}
                 </div>
-              )}
             </div>
           )}
 
-          <div className="border-t border-dashed py-6 text-center">
-            <div className="mb-2 text-sm text-muted-foreground">¿No está en el sistema?</div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowPatientForm(true)}
-              className="h-11"
-            >
+            <div className="px-4 py-6 text-center">
+              <div className="mb-3 text-sm text-muted-foreground">
+                ¿No está en el sistema?
+              </div>
+              <Button
+                type="button"
+                onClick={() => setShowPatientForm(true)}
+                  className="bg-sky-600 text-white hover:bg-sky-700"
+              >
               <UserPlus className="mr-2 h-4 w-4" />
-              Registrar nuevo paciente
-            </Button>
-          </div>
+                Registrar nuevo paciente
+              </Button>
+            </div>
 
           {clientType === "company" && selectedCompany && (
             <div className="flex justify-center">
@@ -842,14 +744,17 @@ function PatientStep(props: {
         </>
       )}
 
-      {showPatientForm && (
-        <InlinePatientForm
-          tenantId={tenantId}
-          companyMode={clientType === "company"}
-          onCancel={() => setShowPatientForm(false)}
-          onSaved={(p) => onChoosePatient(p)}
-        />
-      )}
+      {/*showPatientForm && (
+                <PatientFormDialog
+                    key={tenantId}
+                    open={dialogOpen}
+                    onOpenChange={setShowPatientForm(false)}
+                    tenantId={tenantId}
+                    patient={editing}
+                    //onCancel={() => setShowPatientForm(false)}
+                   // onSaved={(p) => onChoosePatient(p)}
+                />
+      )*/}
     </div>
   );
 }
