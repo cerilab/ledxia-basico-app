@@ -45,7 +45,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { InvoiceComponent } from "@/app/(dashboard)/configuracion/plantillas/invoice";
+import { InvoiceComponent } from "@/components/invoice/thermal";
 import { useReactToPrint } from "react-to-print";
 
 // Import Firestore clients to update data directly when RNC changes

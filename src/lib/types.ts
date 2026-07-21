@@ -109,6 +109,7 @@ export interface EcfStatus {
 }
 
 export interface Invoice {
+  Cedula: undefined;
   paymentMethod: string;
   id: ID;
   invoiceNumber: string;

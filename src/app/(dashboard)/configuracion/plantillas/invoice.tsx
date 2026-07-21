@@ -1,12 +1,12 @@
 import { PrintTemplateInput } from "@/lib/data/settings";
 import type { Invoice, Payment } from "@/lib/types";
 import { formatPrice } from "@/lib/data/services";
+import { METHOD_LABEL } from "@/lib/data/billing";
 import { cn } from "@/lib/utils";
-import { Button } from "@base-ui/react";
 
 export interface InvoiceProps {
-    invoice?: any;
-    payments?: any[];
+    invoice?: Invoice | null;
+    payments?: Payment[];
     currentPaymentChange?: number;
     currentPaymentMethod?: string;
     templateConfig?: PrintTemplateInput;
@@ -20,7 +20,7 @@ interface PreviewInvoiceItem {
 }
 
 interface PreviewInvoice {
-    id?: string;
+    id: string;
     invoiceNumber?: string | null;
     patientName: string;
     patientId?: string;
@@ -32,34 +32,22 @@ interface PreviewInvoice {
     ecf?: { ncf?: string };
 }
 
-const MOCK_INVOICE: PreviewInvoice = {
-    id: "srv-26429084",
-    invoiceNumber: "F-2026-825613",
-    patientName: "KIRSI MARGARITA QUEZADA BERROA",
-    patientId: "026-0122514-3",
-    issuedAt: "2026-06-22T14:10:00",
-    subtotal: 630.00,
-    total: 630.00,
-    paidAmount: 630.00,
-    ecf: { ncf: "E320002785248" },
-    items: [
-        { description: "Hemograma completo (CBC con diferencial)", quantity: 1, unitPrice: 380.00, total: 380.00 },
-        { description: "Glucosa en ayunas", quantity: 1, unitPrice: 250.00, total: 250.00 }
-    ]
-};
+
 
 export function InvoiceComponent({
-                                   invoice,
-                                   payments = [],
-                                   currentPaymentChange = 70.00,
-                                   currentPaymentMethod = "Efectivo",
-                                   templateConfig,
-                               }: InvoiceProps) {
+    invoice,
+    payments = [],
+    currentPaymentChange = 0.00,
+    currentPaymentMethod,
+    templateConfig,
+}: InvoiceProps) {
 
-    
-    const data = invoice ?? MOCK_INVOICE;
+    // Calculate method name from payments list or fallback prop
+    const lastPaymentMethod = payments.length > 0 
+        ? METHOD_LABEL[payments[payments.length - 1].method] 
+        : currentPaymentMethod || "Efectivo";
 
-    
+    // Template Display Options
     const showLogo = templateConfig?.showLogo ?? true;
     const customHeader = templateConfig?.headerText || "Cerilab";
     const showRnc = templateConfig?.showRnc ?? true;
@@ -99,16 +87,16 @@ export function InvoiceComponent({
             return "22/6/26, 2:10 p. m.";
         }
     };
+
     const logourl = "https://picsum.photos/50/50";
 
     return (
-        /* Added print specific text rendering fixes to the main wrapper */
         <div className={cn("bg-white text-black p-4 font-mono leading-tight mx-auto shadow-sm select-none transition-all duration-200 antialiased print:subpixel-antialiased print:text-black", paperWidthClass)}>
             
-        
-        <div className="flex justify-center mb-2">
-            <img src={logourl}/>
-        </div>
+            {/* Logo */}
+            <div className="flex justify-center mb-2">
+                <img src={logourl} alt="Logo" className="w-12 h-12 object-contain" />
+            </div>
 
             {/* Encabezado Dinámico */}
             <div className="text-center space-y-0.5 mb-3">
@@ -140,18 +128,18 @@ export function InvoiceComponent({
                     }}
                 />
                 <span className="text-[9px] font-bold tracking-[0.2em] text-black uppercase">
-          {data.ecf?.ncf ?? "E320002785248"}
-        </span>
+                    {}
+                </span>
             </div>
 
             {/* Metadatos */}
             <div className="space-y-0.5 text-[10px] mb-3 border-b border-black pb-2">
-                <div className="flex justify-between"><span>e-NCF (Secuencia)</span><span className="font-bold">{data.ecf?.ncf ?? "E320002785248"}</span></div>
-                <div className="flex justify-between"><span>Fecha de emisión</span><span>{formatDateStr(data.issuedAt)}</span></div>
-                <div className="flex justify-between"><span>Venc. Secuencial</span><span>31/12/2026</span></div>
-                <div className="flex justify-between"><span>Sucursal</span><span>Sucursal Romana II</span></div>
-                <div className="flex justify-between"><span>No. Factura</span><span>{data.invoiceNumber ?? "F-2026-825613"}</span></div>
-                <div className="flex justify-between"><span>Cód. Servicio</span><span>SRV-26429084</span></div>
+                <div className="flex justify-between"><span>e-NCF (Secuencia)</span><span className="font-bold"></span></div>
+                <div className="flex justify-between"><span>Fecha de emisión</span><span>{}</span></div>
+                <div className="flex justify-between"><span>Venc. Secuencial</span><span></span></div>
+                <div className="flex justify-between"><span>Sucursal</span><span></span></div>
+                <div className="flex justify-between"><span>No. Factura</span><span>{}</span></div>
+                <div className="flex justify-between"><span>Cód. Servicio</span><span>{}</span></div>
                 {showCashier && <div className="flex justify-between"><span>Atendido por</span><span className="truncate max-w-[120px]">María Victoria</span></div>}
             </div>
 
@@ -163,14 +151,10 @@ export function InvoiceComponent({
                     </div>
                     <div className="space-y-0.5 text-[10px] text-black">
                         <div className="font-bold text-[11px] uppercase leading-tight mb-1">
-                            Nombre: {data.patientName}
+                            Nombre: {}
                         </div>
-                        <div className="flex justify-between"><span>Cédula</span><span>{data.patientId}</span></div>
-                        <div className="flex justify-between"><span>F. Nacimiento</span><span>14/3/87</span></div>
-                        <div className="flex justify-between"><span>Teléfono</span><span>809-963-4840</span></div>
-                        <p className="truncate">Médico que atiende: Dr. José Pérez</p>
-                        <div className="flex justify-between"><span>Edad: 39 año(s)</span><span>Sexo: F</span></div>
-                        <div className="flex justify-between pt-1 border-t border-black mt-1"><span>Día y hora</span><span>{formatDateTimeStr(data.issuedAt)}</span></div>
+                        <div className="flex justify-between"><span>Cédula/RNC</span><span>{}</span></div>
+                        <div className="flex justify-between pt-1 border-t border-black mt-1"><span>Día y hora</span><span>{}</span></div>
                         <p className="font-bold text-black mt-0.5">Servicio: Laboratorio</p>
                     </div>
                 </div>
@@ -186,16 +170,16 @@ export function InvoiceComponent({
                 </div>
 
                 <div className="divide-y divide-dashed divide-black text-[10px]">
-                    {data.items.map((item: PreviewInvoiceItem, index: number) => (
-                        <div key={index} className="grid grid-cols-12 py-1.5 items-start">
+                    {
+                        <div className="grid grid-cols-12 py-1.5 items-start">
                             <div className="col-span-6 pr-1 flex flex-col">
-                                <span className="font-bold text-black break-words leading-tight">{item.description}</span>
+                                <span className="font-bold text-black break-words leading-tight">{}</span>
                             </div>
-                            <span className="col-span-2 text-center font-mono text-black">{item.quantity}</span>
-                            <span className="col-span-2 text-right font-mono text-black">{item.unitPrice.toFixed(2)}</span>
-                            <span className="col-span-2 text-right font-mono font-bold text-black">{item.total.toFixed(2)}</span>
+                            <span className="col-span-2 text-center font-mono text-black">{}</span>
+                            <span className="col-span-2 text-right font-mono text-black">{}</span>
+                            <span className="col-span-2 text-right font-mono font-bold text-black">{}</span>
                         </div>
-                    ))}
+                    }
                 </div>
             </div>
 
@@ -203,7 +187,7 @@ export function InvoiceComponent({
             <div className="border-t border-dashed border-black pt-2 space-y-1 text-[10px]">
                 <div className="flex justify-between items-center text-black">
                     <span>Sub-Total</span>
-                    <span className="font-mono font-bold">RD${data.subtotal.toFixed(2)}</span>
+                    <span className="font-mono font-bold">{}</span>
                 </div>
 
                 {templateConfig?.showItbisBreakdown && (
@@ -215,18 +199,18 @@ export function InvoiceComponent({
 
                 <div className="border border-black p-1.5 flex justify-between items-center font-black text-[11px] my-1 bg-white">
                     <span className="tracking-wide">TOTAL A PAGAR</span>
-                    <span className="font-mono text-xs">RD${data.total.toFixed(2)}</span>
+                    <span className="font-mono text-xs">{}</span>
                 </div>
 
                 <div className="flex justify-between items-center text-black">
                     <span>Pagado</span>
-                    <span className="font-mono">RD${data.paidAmount.toFixed(2)}</span>
+                    <span className="font-mono">{}</span>
                 </div>
                 <div className="flex justify-between items-center text-black">
                     <span>Cambio</span>
-                    <span className="font-mono">RD${currentPaymentChange.toFixed(2)}</span>
+                    <span className="font-mono">{}</span>
                 </div>
-                <p className="pt-1 font-bold text-black">Método de Pago: {currentPaymentMethod}</p>
+                <p className="pt-1 font-bold text-black">Método de Pago: {lastPaymentMethod}</p>
             </div>
 
             {/* Bloque QR */}
@@ -234,7 +218,7 @@ export function InvoiceComponent({
                 <div className="flex flex-col items-center space-y-1">
                     <div className="w-16 h-16 bg-white border border-black p-1">
                         <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://ledxia.com/resultados/${data.id}`}
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://ledxia.com/resultados/`}
                             alt="QR Resultados"
                             className="w-full h-full object-contain filter contrast-200"
                         />
@@ -246,8 +230,7 @@ export function InvoiceComponent({
             {/* Pie Personalizado */}
             <div className="text-center text-[9px] space-y-0.5 pt-2 border-t border-black text-black">
                 <p className="font-bold text-[10px] my-1 text-black whitespace-pre-line">{customFooter}</p>
-                <p>Cód. Seguridad: <span className="font-bold text-black">IKJLB1</span></p>
-                <p>Fecha de Firma Digital: {formatDateTimeStr(data.issuedAt)}</p>
+                <p>Fecha de Firma Digital: {}</p>
 
                 {showFiscalMessage && (
                     <p className="font-bold uppercase text-[8px] pt-1 text-black tracking-wide">
@@ -261,7 +244,7 @@ export function InvoiceComponent({
                     <div className="w-full border-b border-black ml-1 mb-0.5"></div>
                 </div>
             </div>
-            <Button className="print:hidden" onClick={() => window.print()}>imprimir</Button>
+
         </div>
     );
 }
