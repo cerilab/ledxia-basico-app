@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { createPatient, updatePatient, type PatientInput } from "@/lib/data/patients";
+import { createPatient, updatePatient } from "@/lib/data/patients";
 import type { Patient } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,9 +16,10 @@ import {
 import {
   PatientFormFields,
   type DocumentType,
+  type ExtendedPatientInput,
 } from "@/components/patients/patient-form-fields";
 
-const EMPTY: PatientInput = {
+const EMPTY: ExtendedPatientInput = {
   firstName: "",
   lastName: "",
   cedula: "",
@@ -44,13 +45,20 @@ const EMPTY: PatientInput = {
   contractNumber: "",
   familyHistory: "",
   medicalHistory: "",
+  deliveryMethod: "whatsapp",
+  maritalStatus: undefined,
+  occupation: "",
+  insuranceProvider: "",
+  attendingPhysician: "",
+  allergies: "",
+  currentMedications: "",
 };
 
-function fromPatient(patient: Patient | null): PatientInput {
+function fromPatient(patient: Patient | null): ExtendedPatientInput {
   if (!patient) return EMPTY;
   return {
-    firstName: patient.firstName,
-    lastName: patient.lastName,
+    firstName: patient.firstName ?? "",
+    lastName: patient.lastName ?? "",
     cedula: patient.cedula ?? "",
     passport: patient.passport ?? "",
     nss: patient.nss ?? "",
@@ -74,27 +82,34 @@ function fromPatient(patient: Patient | null): PatientInput {
     contractNumber: patient.contractNumber ?? "",
     familyHistory: patient.familyHistory ?? "",
     medicalHistory: patient.medicalHistory ?? "",
+    deliveryMethod: (patient as unknown as Record<string, unknown>).deliveryMethod as "whatsapp" | "email" ?? "whatsapp",
+    maritalStatus: (patient as unknown as Record<string, unknown>).maritalStatus as ExtendedPatientInput["maritalStatus"],
+    occupation: (patient as unknown as Record<string, unknown>).occupation as string ?? "",
+    insuranceProvider: (patient as unknown as Record<string, unknown>).insuranceProvider as string ?? "",
+    attendingPhysician: (patient as unknown as Record<string, unknown>).attendingPhysician as string ?? "",
+    allergies: (patient as unknown as Record<string, unknown>).allergies as string ?? "",
+    currentMedications: (patient as unknown as Record<string, unknown>).currentMedications as string ?? "",
   };
 }
 
-function cleanInput(input: PatientInput): PatientInput {
-  const out: PatientInput = {
+function cleanInput(input: ExtendedPatientInput): ExtendedPatientInput {
+  const out: ExtendedPatientInput = {
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
   };
 
-  for (const [key, value] of Object.entries(input) as [keyof PatientInput, unknown][]) {
+  for (const [key, value] of Object.entries(input) as [keyof ExtendedPatientInput, unknown][]) {
     if (key === "firstName" || key === "lastName") continue;
     if (typeof value === "string") {
       const trimmed = value.trim();
       if (trimmed) {
-        (out as Record<string, unknown>)[key] =
-          key === "cedula" || key === "nss" ? trimmed.replace(/\D/g, "") : trimmed;
+        (out as unknown as Record<string, unknown>)[key] =
+            key === "cedula" || key === "nss" ? trimmed.replace(/\D/g, "") : trimmed;
       }
       continue;
     }
     if (value !== undefined && value !== null) {
-      (out as Record<string, unknown>)[key] = value;
+      (out as unknown as Record<string, unknown>)[key] = value;
     }
   }
 
@@ -117,26 +132,46 @@ export function PatientFormDialog({
   onSaved?: (patient: Patient) => void;
 }) {
   const isEdit = !!patient;
-  const [form, setForm] = useState<PatientInput>(() => fromPatient(patient ?? null));
-  const [documentType, setDocumentType] = useState<DocumentType>(
-    patient?.passport ? "passport" : "cedula",
-  );
-  const [isMinor, setIsMinor] = useState(!!patient?.legalGuardian);
+  const [form, setForm] = useState<ExtendedPatientInput>(() => fromPatient(patient ?? null));
+  const [documentType, setDocumentType] = useState<DocumentType>("cedula");
+  const [isMinor, setIsMinor] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  function set<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
+  useEffect(() => {
+    if (open) {
+      setForm(fromPatient(patient ?? null));
+      setDocumentType(patient?.passport ? "passport" : "cedula");
+      setIsMinor(!!patient?.legalGuardian);
+    }
+  }, [open, patient]);
+
+  function set<K extends keyof ExtendedPatientInput>(key: K, value: ExtendedPatientInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!tenantId) return;
+    if (!tenantId) {
+      toast.error("Error de sesión: Tenant no identificado");
+      return;
+    }
+
     const payload = cleanInput({
       ...form,
       legalGuardian: isMinor ? form.legalGuardian : "",
     });
+
     if (!payload.firstName || !payload.lastName) {
-      toast.error("Nombre y apellido son obligatorios");
+      toast.error("El nombre y apellido son requeridos.");
+      return;
+    }
+
+    if (payload.deliveryMethod === "whatsapp" && !payload.phoneMobile) {
+      toast.error("Proporcione un celular/WhatsApp para enviar los resultados.");
+      return;
+    }
+    if (payload.deliveryMethod === "email" && !payload.email) {
+      toast.error("Proporcione un correo electrónico para enviar los resultados.");
       return;
     }
 
@@ -144,16 +179,17 @@ export function PatientFormDialog({
     try {
       if (isEdit && patient) {
         await updatePatient(tenantId, patient.id, payload);
-        toast.success("Paciente actualizado");
+        toast.success("Paciente actualizado con éxito");
         onSaved?.({ ...patient, ...payload });
       } else {
         const ref = await createPatient(tenantId, payload);
-        toast.success("Paciente registrado");
+        toast.success("Paciente registrado con éxito");
         onSaved?.({ id: ref.id, active: true, ...payload } as Patient);
       }
       onOpenChange(false);
-    } catch {
-      toast.error("No se pudo guardar el paciente");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al guardar los datos del paciente");
     } finally {
       setSaving(false);
     }
@@ -161,9 +197,9 @@ export function PatientFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-2rem)] max-w-4xl grid-rows-none flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex max-h-[95vh] w-full sm:max-w-6xl grid-rows-none flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b bg-muted/20 px-6 py-4">
-          <DialogTitle>{title ?? (isEdit ? "Editar paciente" : "Nuevo paciente")}</DialogTitle>
+          <DialogTitle>{title ?? (isEdit ? "Editar expediente de paciente" : "Nuevo registro de paciente")}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -178,13 +214,13 @@ export function PatientFormDialog({
             />
           </div>
 
-          <DialogFooter className="shrink-0">
+          <DialogFooter className="shrink-0 border-t bg-muted/10 px-6 py-3">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {isEdit ? "Guardar" : "Guardar paciente"}
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEdit ? "Guardar cambios" : "Guardar paciente"}
             </Button>
           </DialogFooter>
         </form>

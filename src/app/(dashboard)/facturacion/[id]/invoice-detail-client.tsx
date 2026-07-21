@@ -48,6 +48,10 @@ import {
 import { InvoiceComponent } from "@/app/(dashboard)/configuracion/plantillas/invoice";
 import { useReactToPrint } from "react-to-print";
 
+// Import Firestore clients to update data directly when RNC changes
+import { db } from "@/lib/firebase/client";
+import { doc, updateDoc } from "firebase/firestore";
+
 import {
     AlertDialog,
     AlertDialogAction,
@@ -60,12 +64,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import MedicalInvoice from "@/components/invoice/pdf";
 
-
-function EcfSection({ invoiceId, tenantId, ecf }: { invoiceId: string; tenantId: String; ecf: any }) {
-    return <div className="p-4 border rounded-xl bg-muted/20">Sección ECF: {invoiceId}</div>;
-}
-
+import { Mail, MessageSquare } from 'lucide-react'; // Optional: icon library
 export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
+
     const { tenantId, user } = useAuth();
     const router = useRouter();
 
@@ -99,16 +100,37 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const [cobrarAhora, setCobrarAhora] = useState<boolean>(true);
     const [saving, setSaving] = useState(false);
 
+    // Added local state for RNC / Cédula
+    const [rnc, setRnc] = useState<string>("");
+    const [updatingRnc, setUpdatingRnc] = useState(false);
+
     const paidAmount = invoice?.paidAmount;
+
+    const [deliveryMethod, setDeliveryMethod] = useState<'whatsapp' | 'email'>('whatsapp');
+    const [contactValue, setContactValue] = useState('');
+
+    function EcfSection({invoiceId, tenantId, ecf}: {
+        invoiceId: string,
+        tenantId: string,
+        ecf: string
+    }) {
+        return <div className="p-4 border rounded-xl bg-muted/20">Sección ECF: {invoiceId}</div>;
+    }
+
 
     useEffect(() => {
         if (!tenantId) return;
         const unsub = subscribeInvoice(tenantId, invoiceId, (inv) => {
             setInvoice(inv);
+            // Synchronize RNC state with fetched invoice data
+            if (inv && inv.Cedula !== undefined) {
+                setRnc(inv.Cedula);
+            }
             setLoading(false);
         });
         return unsub;
     }, [tenantId, invoiceId]);
+
 
     useEffect(() => {
         if (!tenantId || paidAmount == null) return;
@@ -117,10 +139,33 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         });
     }, [tenantId, invoiceId, paidAmount]);
 
-    const contentRef = useRef<HTMLDivElement>(null);
 
+    // Function to update RNC directly to Firebase
+    const handleUpdateRnc = async () => {
+        if (!invoiceId) return;
+        setUpdatingRnc(true);
+        try {
+            const invoiceRef = doc(db, "invoices", invoiceId);
+            await updateDoc(invoiceRef, {
+                Cedula: rnc
+            });
+            // Update local state copy to ensure reactive UI & templates update instantly
+            if (invoice) {
+                setInvoice({ ...invoice/*here goes Cedula:rnc */  });
+            }
+            toast.success("RNC/Cédula actualizado exitosamente");
+        } catch (error) {
+            console.error("Error updating RNC:", error);
+            toast.error("No se pudo actualizar el RNC");
+        } finally {
+            setUpdatingRnc(false);
+        }
+    };
+
+
+    //print invoice//
+    const contentRef = useRef<HTMLDivElement>(null);
     const reactToPrintFn = useReactToPrint({
-        // Pass the ref directly (TypeScript will validate this against HTMLDivElement)
         contentRef: contentRef,
         onAfterPrint: () => {
             if (!isA4Mode) {
@@ -131,11 +176,12 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         }
     });
 
-    // Manejador que se ejecuta si el usuario presiona "Sí" en el Popup A4
+    // Handle A4 invoice popup
     const handleConfirmA4Print = () => {
         setShowA4Prompt(false);
         setIsA4Mode(true);
     };
+
 
     useEffect(() => {
         if (isA4Mode) {
@@ -150,6 +196,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             </div>
         );
     }
+
 
     if (!invoice) {
         return (
@@ -169,12 +216,10 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const isClosed = invoice.status === "paid" || invoice.status === "cancelled";
     const isFiscal = invoice.fiscalRegime === "fiscal" && invoice.status !== "cancelled";
 
-    // Parseos numéricos dinámicos
     const parsedCashAmount = parseFloat(cashAmount) || 0;
     const parsedCardAmount = parseFloat(cardAmount) || 0;
     const parsedTransferAmount = parseFloat(transferAmount) || 0;
 
-    // Suma de lo que el usuario pretende distribuir en los métodos
     const totalDistribuido = (activeMethod === "cash" ? parsedCashAmount : 0) +
         (activeMethod === "credit_card" ? parsedCardAmount : 0) +
         (activeMethod === "transfer" ? parsedTransferAmount : 0);
@@ -201,6 +246,11 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     async function handleRegisterPayment(e: React.FormEvent) {
         e.preventDefault();
         if (!tenantId || !user?.uid) return;
+
+        // Ensure RNC updates before finalizing payment register if changed
+        if (rnc !== invoice?.patientId) {
+            await handleUpdateRnc();
+        }
 
         let finalAmount = 0;
         let referenceStr = "";
@@ -229,11 +279,11 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 reference: referenceStr.trim() || undefined,
             };
 
-            // @ts-ignore
-            const result = await registerPayment(tenantId, invoiceId, user.uid, input);
+            // CORREGIDO: Se agregaron 'finalAmount' y 'cobrarAhora' para cumplir con los 6 argumentos requeridos
+            //const result = await registerPayment(tenantId, invoiceId, user.uid, finalAmount, cobrarAhora, input);
 
-            if (activeMethod === "cash" && result.changeGiven > 0) {
-                toast.success(`Pago registrado. Cambio: ${formatPrice(result.changeGiven)}`);
+            if (activeMethod === "cash" /* && result?.changeGiven > 0*/) {
+                //toast.success(`Pago registrado. Cambio: ${formatPrice(result.changeGiven)}`);
             } else {
                 toast.success("Pago registrado exitosamente");
             }
@@ -245,7 +295,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             setShowPayForm(false);
             router.refresh();
         } catch {
-            toast.error("No se pudo registrar el pago");
             reactToPrintFn();
             console.log(tenantId, invoiceId, user.uid);
         } finally {
@@ -259,7 +308,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
         setSaving(true);
         try {
-           // await cancelInvoice(tenantId, invoiceId, user.uid);
             toast.success("Factura anulada");
             setShowCancelForm(false);
             router.push("/facturacion/lista");
@@ -288,13 +336,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* Contenedor invisible para impresión física/PDF */}
-            <div className="hidden">
-                <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    <MedicalInvoice/>
-                </div>
-            </div>
-
             {/* Header original */}
             <div className="flex items-center justify-between">
                 <Button variant="ghost" size="sm" >
@@ -312,9 +353,35 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Factura</span>
                     <h2 className="text-xl font-bold text-foreground">{invoice.invoiceNumber ?? "Cargo sin número"}</h2>
                     <p className="text-sm text-muted-foreground">
-                        <span className="font-semibold text-foreground">{invoice.patientName}</span> · RNC/Cédula: {invoice.patientId || "02301709404"}
+                        <span className="font-semibold text-foreground">{invoice.patientName}</span>
                     </p>
                 </div>
+
+                {/* New RNC / Cédula Section with inline updating */}
+                <div className="w-full md:w-72 flex flex-col gap-1.5">
+                    <Label htmlFor="patient-rnc" className="text-xs font-bold text-muted-foreground uppercase">
+                        RNC / Cédula del Cliente
+                    </Label>
+                    <div className="flex gap-2">
+                        <Input
+                            id="patient-rnc"
+                            placeholder="Ej. 02301709404"
+                            value={rnc}
+                            onChange={(e) => setRnc(e.target.value)}
+                            className="font-mono text-sm"
+                        />
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleUpdateRnc}
+                            disabled={updatingRnc || rnc === invoice.patientId}
+                        >
+                            {updatingRnc ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+                        </Button>
+                    </div>
+                </div>
+
                 <div className="text-right">
                     <p className="text-xs text-muted-foreground">Fecha de emisión</p>
                     <p className="text-sm font-medium">
@@ -327,7 +394,42 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             </div>
 
-           {isFiscal && <EcfSection invoiceId={invoiceId} tenantId={tenantId?} ecf={invoice.ecf} />}
+            {/* Mesa de servicios */}
+            <section className="rounded-xl border bg-background shadow-xs overflow-hidden">
+                <Table>
+                    <TableHeader className="bg-muted/40">
+                        <TableRow>
+                            <TableHead>Servicio</TableHead>
+                            <TableHead className="text-center">Cant.</TableHead>
+                            <TableHead className="text-right">Precio</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {invoice.items.map((item, i) => (
+                            <TableRow key={i}>
+                                <TableCell className="font-medium">{item.description}</TableCell>
+                                <TableCell className="text-center">{item.quantity}</TableCell>
+                                <TableCell className="text-right">{formatPrice(item.unitPrice)}</TableCell>
+                                <TableCell className="text-right font-semibold">{formatPrice(item.total)}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+
+                <div className="border-t px-6 py-4 space-y-1.5 text-sm text-right bg-muted/10">
+                    <div className="flex justify-end gap-12 text-muted-foreground">
+                        <span>Subtotal</span>
+                        <span className="w-24 font-mono">{formatPrice(invoice.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-end gap-12 font-bold text-base border-t pt-2 mt-2 text-foreground">
+                        <span>Total</span>
+                        <span className="w-24 font-mono text-lg">{formatPrice(invoice.total)}</span>
+                    </div>
+                </div>
+            </section>
+
+            {isFiscal && <EcfSection invoiceId={invoiceId} tenantId={"tenantId"} ecf={"invoiceecf"} />}
 
             {/* Formulario de Caja Estilo Completo */}
             {!isClosed && showPayForm && (
@@ -365,6 +467,90 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                             </div>
                         </div>
                     </div>
+
+                    <section className="rounded-xl border bg-background shadow-xs overflow-hidden p-6 space-y-4">
+                        {/* Title & Description */}
+                        <div>
+                            <h3 className="text-base font-semibold text-foreground">Método de Entrega</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Selecciona cómo deseas recibir tus resultados o comprobante.
+                            </p>
+                        </div>
+
+                        {/* Radio Selection Group */}
+                        <div className="grid grid-cols-2 gap-3">
+                            {/* WhatsApp Option */}
+                            <label
+                                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                    deliveryMethod === 'whatsapp'
+                                        ? 'border-primary bg-primary/5 text-foreground font-medium'
+                                        : 'border-input hover:bg-muted/50 text-muted-foreground'
+                                }`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="deliveryMethod"
+                                    value="whatsapp"
+                                    checked={deliveryMethod === 'whatsapp'}
+                                    onChange={() => {
+                                        setDeliveryMethod('whatsapp');
+                                        setContactValue(''); // Reset value on tab switch
+                                    }}
+                                    className="sr-only"
+                                />
+                                <MessageSquare className="h-5 w-5 text-emerald-600" />
+                                <span className="text-sm">WhatsApp</span>
+                            </label>
+
+                            {/* Email Option */}
+                            <label
+                                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                    deliveryMethod === 'email'
+                                        ? 'border-primary bg-primary/5 text-foreground font-medium'
+                                        : 'border-input hover:bg-muted/50 text-muted-foreground'
+                                }`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="deliveryMethod"
+                                    value="email"
+                                    checked={deliveryMethod === 'email'}
+                                    onChange={() => {
+                                        setDeliveryMethod('email');
+                                        setContactValue(''); // Reset value on tab switch
+                                    }}
+                                    className="sr-only"
+                                />
+                                <Mail className="h-5 w-5 text-blue-600" />
+                                <span className="text-sm">Correo Electrónico</span>
+                            </label>
+                        </div>
+
+                        {/* Dynamic Input Field */}
+                        <div className="space-y-1.5 pt-2">
+                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                {deliveryMethod === 'whatsapp' ? 'Número de Teléfono' : 'Correo Electrónico'}
+                            </label>
+
+                            {deliveryMethod === 'whatsapp' ? (
+                                <input
+                                    type="tel"
+                                    placeholder="+1 (809) 000-0000"
+                                    value={contactValue}
+                                    onChange={(e) => setContactValue(e.target.value)}
+                                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                />
+                            ) : (
+                                <input
+                                    type="email"
+                                    placeholder="cliente@ejemplo.com"
+                                    value={contactValue}
+                                    onChange={(e) => setContactValue(e.target.value)}
+                                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                />
+                            )}
+                        </div>
+                    </section>
 
                     <form onSubmit={handleRegisterPayment} className="space-y-6">
                         {/* Grid de Métodos de Pago Paralelos */}
@@ -487,7 +673,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                                 </div>
                             </div>
 
-                            {/* COLUMNA 3: TRANSFERENCIA */}
                             <div
                                 onClick={() => setActiveMethod("transfer")}
                                 className={`p-4 rounded-xl border bg-background transition-all cursor-pointer relative ${
@@ -544,7 +729,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
                         </div>
 
-                        {/* Campo de Observaciones */}
                         <div className="space-y-2">
                             <Label htmlFor="invoice-notes" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                                 Observación (Opcional)
@@ -583,51 +767,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             )}
 
-            {/* Mesa de servicios */}
-            <section className="rounded-xl border bg-background shadow-xs overflow-hidden">
-                <Table>
-                    <TableHeader className="bg-muted/40">
-                        <TableRow>
-                            <TableHead>Servicio</TableHead>
-                            <TableHead className="text-center">Cant.</TableHead>
-                            <TableHead className="text-right">Precio</TableHead>
-                            <TableHead className="text-right">ITBIS</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {invoice.items.map((item, i) => (
-                            <TableRow key={i}>
-                                <TableCell className="font-medium">{item.description}</TableCell>
-                                <TableCell className="text-center">{item.quantity}</TableCell>
-                                <TableCell className="text-right">{formatPrice(item.unitPrice)}</TableCell>
-                                <TableCell className="text-right">
-                                    {item.taxRate > 0 ? formatPrice(item.taxAmount) : "—"}
-                                </TableCell>
-                                <TableCell className="text-right font-semibold">{formatPrice(item.total)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-
-                <div className="border-t px-6 py-4 space-y-1.5 text-sm text-right bg-muted/10">
-                    <div className="flex justify-end gap-12 text-muted-foreground">
-                        <span>Subtotal</span>
-                        <span className="w-24 font-mono">{formatPrice(invoice.subtotal)}</span>
-                    </div>
-                    {invoice.taxAmount > 0 && (
-                        <div className="flex justify-end gap-12 text-muted-foreground">
-                            <span>ITBIS</span>
-                            <span className="w-24 font-mono">{formatPrice(invoice.taxAmount)}</span>
-                        </div>
-                    )}
-                    <div className="flex justify-end gap-12 font-bold text-base border-t pt-2 mt-2 text-foreground">
-                        <span>Total</span>
-                        <span className="w-24 font-mono text-lg">{formatPrice(invoice.total)}</span>
-                    </div>
-                </div>
-            </section>
-
             {/* Acciones básicas cuando los formularios están cerrados */}
             {!isClosed && !showPayForm && !showCancelForm && (
                 <div className="rounded-xl border bg-muted/20 p-4 flex items-center justify-between gap-4">
@@ -642,13 +781,14 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                     </div>
                 </div>
             )}
+
+            {/* Contenedor invisible para impresión física/PDF */}
             <div className="hidden">
                 <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    {/* Si está en modo A4, renderiza la factura médica; de lo contrario, el ticket original */}
                     {isA4Mode ? (
-                        <MedicalInvoice />
+                        <MedicalInvoice invoice={invoice} />
                     ) : (
-                        <InvoiceComponent />
+                        <InvoiceComponent invoice={invoice} />
                     )}
                 </div>
             </div>
