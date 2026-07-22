@@ -2,7 +2,6 @@ import { PrintTemplateInput } from "@/lib/data/settings";
 import type { Invoice, Payment } from "@/lib/types";
 import { formatPrice } from "@/lib/data/services";
 import { cn } from "@/lib/utils";
-import { Button } from "@base-ui/react";
 
 export interface InvoiceProps {
     invoice?: any;
@@ -28,6 +27,8 @@ interface PreviewInvoice {
     subtotal: number;
     total: number;
     paidAmount: number;
+    amountTendered?: number;
+    changeGiven?: number;
     items: PreviewInvoiceItem[];
     ecf?: { ncf?: string };
 }
@@ -35,7 +36,7 @@ interface PreviewInvoice {
 export function InvoiceComponent({
     invoice,
     payments = [],
-    currentPaymentChange = 0.00,
+    currentPaymentChange,
     currentPaymentMethod = "Efectivo",
     templateConfig,
 }: InvoiceProps) {
@@ -50,12 +51,15 @@ export function InvoiceComponent({
         subtotal: invoice?.subtotal || 0,
         total: invoice?.total || 0,
         paidAmount: invoice?.paidAmount || 0,
+        amountTendered: invoice?.amountTendered,
+        changeGiven: invoice?.changeGiven,
         items: invoice?.items || [],
         ecf: invoice?.ecf
     };
 
-    // Cálculos de Pago
-    const totalEntregado = data.paidAmount + currentPaymentChange;
+    // Cálculos de Pago precisos
+    const devueltaCalculada = currentPaymentChange ?? data.changeGiven ?? 0;
+    const montoEntregado = data.amountTendered ?? (data.paidAmount + devueltaCalculada);
     const balanceRestante = Math.max(0, data.total - data.paidAmount);
 
     const showLogo = templateConfig?.showLogo ?? true;
@@ -218,7 +222,7 @@ export function InvoiceComponent({
                 {/* --- SECCIÓN DE PAGOS Y CAMBIO --- */}
                 <div className="flex justify-between items-center text-black pt-1">
                     <span>Monto Recibido</span>
-                    <span className="font-mono">RD${totalEntregado.toFixed(2)}</span>
+                    <span className="font-mono">RD${montoEntregado.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-black">
                     <span>Monto Aplicado</span>
@@ -226,7 +230,7 @@ export function InvoiceComponent({
                 </div>
                 <div className="flex justify-between items-center text-black">
                     <span>Devuelta (Cambio)</span>
-                    <span className="font-mono">RD${currentPaymentChange.toFixed(2)}</span>
+                    <span className="font-mono">RD${devueltaCalculada.toFixed(2)}</span>
                 </div>
 
                 {/* Muestra Restante si existe saldo pendiente */}
