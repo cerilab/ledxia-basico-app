@@ -38,7 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import {useRetrieveServices} from "../queries/retrieve";
+import { useRetrieveServices } from "../queries/retrieve";
 import { useRouter } from "next/navigation";
 import { PatientFormDialog } from "../patients/patient-form-dialog";
 import { CompanyFormDialog } from "../companies/company-form-dialog";
@@ -159,16 +159,16 @@ function CatPill({ active, label, count }: { active?: boolean; label: string; co
     </Badge>
   );
 }
+
 export function NewOrderSheet({
   open,
   onClose,
   onCreated,
-  active
 }: {
-    open: boolean;
-    onClose: () => void;
-    onCreated?: (invoiceId: string) => void;
-    active?: boolean;
+  open: boolean;
+  onClose: () => void;
+  onCreated?: (invoiceId: string) => void;
+  active?: boolean;
 }) {
   const { tenantId, user } = useAuth();
 
@@ -199,12 +199,6 @@ export function NewOrderSheet({
   const [submitting, setSubmitting] = useState(false);
 
   const route = useRouter();
-
-  
-  const [editing, setEditing] = useState<Patient | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [term, setTerm] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!tenantId || !open) return;
@@ -265,16 +259,15 @@ export function NewOrderSheet({
     setStep("order");
   }
 
-function toggleService(s: Service) {
+  function toggleService(s: Service) {
     setCart((prev) => {
       if (prev.some((c) => c.service.Codigo === s.Codigo)) {
         return prev.filter((c) => c.service.Codigo !== s.Codigo);
       }
-      // Injecting the correct field maps so buildItem picks up the description and data structures natively
       const structuralService = {
         ...s,
-        description: s.Examen || "", // Fallback field in case buildItem relies on explicit text naming
-        name: s.Examen || ""
+        description: s.Examen || "",
+        name: s.Examen || "",
       };
       return [...prev, { service: s, item: buildItem(structuralService, 1) }];
     });
@@ -285,7 +278,7 @@ function toggleService(s: Service) {
     const t = serviceTerm.trim().toLowerCase();
     if (!t) return tyrannicalServices;
     return tyrannicalServices.filter(
-      (s: { Examen: string; Codigo: string; }) =>
+      (s: { Examen: string; Codigo: string }) =>
         s.Examen?.toLowerCase().includes(t) ||
         s.Codigo?.toLowerCase().includes(t)
     );
@@ -298,11 +291,10 @@ function toggleService(s: Service) {
     if (!tenantId || !user || !canSubmit) return;
     setSubmitting(true);
     try {
-      console.log("Creating order with data:", cart.map((c) => c.item))
       const billedName = selectedPatient
         ? patientFullName(selectedPatient)
         : selectedCompany?.name ?? "Empresa";
-      const ref = await createCharge(tenantId, user.uid, {
+      await createCharge(tenantId, user.uid, {
         patientId: selectedPatient?.id ?? "",
         patientName: billedName,
         companyId: clientType === "company" ? selectedCompany?.id : undefined,
@@ -318,22 +310,18 @@ function toggleService(s: Service) {
           originClinic.trim() ? `Procedencia: ${originClinic.trim()}` : "",
           referringDoctor.trim() ? `Referido por: ${referringDoctor.trim()}` : "",
           orderNotes.trim(),
-        ] 
+        ]
           .filter(Boolean)
           .join("\n"),
       });
       toast.success("Orden creada");
-      onCreated?.("new-invoice-id"); // Aquí deberías pasar el ID real de la factura creadaq
-      route.push(`/recepcion/`)
+      onCreated?.("new-invoice-id");
+      route.push(`/recepcion/`);
       onClose();
-      ;
-        } catch (error) {
-      // En TS, 'error' es de tipo 'unknown' por defecto
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Error desconocido";
-      
       toast.error("No se pudo generar la orden");
       console.error("Error creating order:", errorMessage);
-
     } finally {
       setSubmitting(false);
     }
@@ -595,17 +583,16 @@ function PatientStep(props: {
               Empresa que factura esta orden
             </Label>
             {showCompanyForm ? (
-                <CompanyFormDialog
-                // Remove or comment this line out if tenantId doesn't exist in this file
-                // tenantId={tenantId}
+              <CompanyFormDialog
                 defaultName={companyTerm.trim()}
                 onSaved={(c) => {
                   setSelectedCompany(c);
                   setCompanyTerm("");
                   setShowCompanyForm(false);
-                } } open={false} onOpenChange={function (v: boolean): void {
-                  throw new Error("Function not implemented.");
-                } }                />
+                }}
+                open={showCompanyForm}
+                onOpenChange={setShowCompanyForm}
+              />
             ) : selectedCompany ? (
               <SelectedCard
                 title={selectedCompany.name}
@@ -662,104 +649,99 @@ function PatientStep(props: {
         )}
       </div>
 
-      {!showPatientForm && (
-        <>
-          <div>
-            <Label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-              {clientType === "company"
-                ? "Buscar paciente / empleado (opcional)"
-                : "Buscar paciente existente"}
-            </Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={patientTerm}
-                onChange={(e) => setPatientTerm(e.target.value)}
-                placeholder="Cédula, nombre o teléfono (mín. 2 caracteres)…"
-                className="h-12 pl-9 text-base"
-                autoFocus={clientType === "person"}
-              />
+      <>
+        <div>
+          <Label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            {clientType === "company"
+              ? "Buscar paciente / empleado (opcional)"
+              : "Buscar paciente existente"}
+          </Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={patientTerm}
+              onChange={(e) => setPatientTerm(e.target.value)}
+              placeholder="Cédula, nombre o teléfono (mín. 2 caracteres)…"
+              className="h-12 pl-9 text-base"
+              autoFocus={clientType === "person"}
+            />
+          </div>
+        </div>
+
+        {patientTerm.trim().length >= 2 && (
+          <div className="overflow-hidden rounded-xl border bg-white dark:bg-slate-900">
+            <div className="max-h-80 divide-y overflow-y-auto">
+              {filteredPatients.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => onChoosePatient(p)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-indigo-50/60 dark:hover:bg-indigo-950/10"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
+                    <User className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold">{patientFullName(p)}</div>
+                    <div className="flex items-center gap-2 truncate font-mono text-xs text-muted-foreground">
+                      <span>{p.cedula || p.passport || "—"}</span>
+                      {p.phoneMobile && (
+                        <>
+                          <span className="opacity-40">·</span>
+                          <Phone className="h-3 w-3" />
+                          <span>{p.phoneMobile}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <Badge>Seleccionar</Badge>
+                </button>
+              ))}
             </div>
           </div>
+        )}
 
-          {patientTerm.trim().length >= 2 && (
-            <div className="overflow-hidden rounded-xl border bg-white dark:bg-slate-900">
-                <div className="max-h-80 divide-y overflow-y-auto">
-                  {filteredPatients.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => onChoosePatient(p)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-indigo-50/60 dark:hover:bg-indigo-950/10"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
-                        <User className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold">{patientFullName(p)}</div>
-                        <div className="flex items-center gap-2 truncate font-mono text-xs text-muted-foreground">
-                          <span>{p.cedula || p.passport || "—"}</span>
-                          {p.phoneMobile && (
-                            <>
-                              <span className="opacity-40">·</span>
-                              <Phone className="h-3 w-3" />
-                              <span>{p.phoneMobile}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <Badge>Seleccionar</Badge>
-                    </button>
-                  ))}
-                </div>
-            </div>
-          )}
+        <div className="px-4 py-6 text-center">
+          <div className="mb-3 text-sm text-muted-foreground">
+            ¿No está en el sistema?
+          </div>
+          <Button
+            type="button"
+            onClick={() => setShowPatientForm(true)}
+            className="bg-sky-600 text-white hover:bg-sky-700"
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Registrar nuevo paciente
+          </Button>
+        </div>
 
-            <div className="px-4 py-6 text-center">
-              <div className="mb-3 text-sm text-muted-foreground">
-                ¿No está en el sistema?
-              </div>
-              <Button
-                type="button"
-                onClick={() => setShowPatientForm(true)}
-                  className="bg-sky-600 text-white hover:bg-sky-700"
-              >
-              <UserPlus className="mr-2 h-4 w-4" />
-                Registrar nuevo paciente
-              </Button>
-            </div>
+        {clientType === "company" && selectedCompany && (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onContinueCompany}
+              className="text-[color:var(--brand-primary,#00A99D)]"
+            >
+              Continuar sin paciente →
+            </Button>
+          </div>
+        )}
+      </>
 
-          {clientType === "company" && selectedCompany && (
-            <div className="flex justify-center">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onContinueCompany}
-                className="text-[color:var(--brand-primary,#00A99D)]"
-              >
-                Continuar sin paciente →
-              </Button>
-            </div>
-          )}
-        </>
-      )}
-
-      {/*showPatientForm && (
-                <PatientFormDialog
-                    key={tenantId}
-                    open={dialogOpen}
-                    onOpenChange={setShowPatientForm(false)}
-                    tenantId={tenantId}
-                    patient={editing}
-                    //onCancel={() => setShowPatientForm(false)}
-                   // onSaved={(p) => onChoosePatient(p)}
-                />
-      )*/}
+      {/* Invocación conectada del formulario de paciente */}
+      <PatientFormDialog
+        open={showPatientForm}
+        onOpenChange={setShowPatientForm}
+        tenantId={tenantId}
+        onSaved={(newPatient) => {
+          onChoosePatient(newPatient);
+          setShowPatientForm(false);
+        }}
+      />
     </div>
   );
 }
-
-
 
 function OrderStep(props: {
   clientType: ClientType;
@@ -805,7 +787,6 @@ function OrderStep(props: {
   const selectedCount = cart.length;
   const selectedIds = new Set(cart.map((c) => c.service.Codigo));
 
-  console.log("OrderStep props:", selectedIds);
   return (
     <div className="space-y-4 px-6 py-5">
       <PartyChip patient={patient} company={company} clientType={clientType} category={category} />
@@ -985,7 +966,9 @@ function OrderStep(props: {
                         </span>
                       )}
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.Examen}</span>
-                      <span className="shrink-0 text-sm font-semibold text-[color:var(--brand-primary,#00A99D)]">{formatPrice(s.Precio_privado)}</span>
+                      <span className="shrink-0 text-sm font-semibold text-[color:var(--brand-primary,#00A99D)]">
+                        {formatPrice(s.Precio_privado)}
+                      </span>
                     </div>
                   );
                 })}
