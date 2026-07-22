@@ -13,6 +13,8 @@ import {
     Banknote,
     CreditCard,
     SendToBack,
+    Mail,
+    MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/context";
@@ -64,7 +66,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import MedicalInvoice from "@/components/invoice/pdf";
 
-import { Mail, MessageSquare } from 'lucide-react'; // Optional: icon library
 export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
     const { tenantId, user } = useAuth();
@@ -117,7 +118,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         return <div className="p-4 border rounded-xl bg-muted/20">Sección ECF: {invoiceId}</div>;
     }
 
-
     useEffect(() => {
         if (!tenantId) return;
         const unsub = subscribeInvoice(tenantId, invoiceId, (inv) => {
@@ -131,14 +131,12 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         return unsub;
     }, [tenantId, invoiceId]);
 
-
     useEffect(() => {
         if (!tenantId || paidAmount == null) return;
         getPaymentsForInvoice(tenantId, invoiceId).then((data) => {
             setPayments(data);
         });
     }, [tenantId, invoiceId, paidAmount]);
-
 
     // Function to update RNC directly to Firebase
     const handleUpdateRnc = async () => {
@@ -151,7 +149,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             });
             // Update local state copy to ensure reactive UI & templates update instantly
             if (invoice) {
-                setInvoice({ ...invoice/*here goes Cedula:rnc */  });
+                setInvoice({ ...invoice, Cedula: rnc });
             }
             toast.success("RNC/Cédula actualizado exitosamente");
         } catch (error) {
@@ -161,7 +159,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             setUpdatingRnc(false);
         }
     };
-
 
     //print invoice//
     const contentRef = useRef<HTMLDivElement>(null);
@@ -182,7 +179,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
         setIsA4Mode(true);
     };
 
-
     useEffect(() => {
         if (isA4Mode) {
             reactToPrintFn();
@@ -196,7 +192,6 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             </div>
         );
     }
-
 
     if (!invoice) {
         return (
@@ -227,6 +222,22 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     const parsedTendered = parseFloat(cashTendered) || 0;
     const change = activeMethod === "cash" && parsedTendered > 0 ? Math.max(0, parsedTendered - parsedCashAmount) : 0;
     const isBalanced = Math.abs(totalDistribuido - remaining) < 0.01;
+
+    // Obtener el último pago en efectivo para la factura cuando ya está registrada
+    const lastCashPayment = payments.find((p) => p.method === "cash");
+
+    // Construcción de la factura formateada para impresión con montos de efectivo y devuelta
+    const printableInvoice = {
+        ...invoice,
+        amountTendered:
+            activeMethod === "cash" && parsedTendered > 0
+                ? parsedTendered
+                : (lastCashPayment?.amountTendered ?? (invoice as any).amountTendered ?? 0),
+        changeGiven:
+            activeMethod === "cash" && parsedTendered > 0
+                ? change
+                : (lastCashPayment?.changeGiven ?? (invoice as any).changeGiven ?? 0),
+    };
 
     function handleOpenPayForm() {
         setCashAmount(remaining.toString());
@@ -279,14 +290,7 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 reference: referenceStr.trim() || undefined,
             };
 
-            // CORREGIDO: Se agregaron 'finalAmount' y 'cobrarAhora' para cumplir con los 6 argumentos requeridos
-            //const result = await registerPayment(tenantId, invoiceId, user.uid, finalAmount, cobrarAhora, input);
-
-            if (activeMethod === "cash" /* && result?.changeGiven > 0*/) {
-                //toast.success(`Pago registrado. Cambio: ${formatPrice(result.changeGiven)}`);
-            } else {
-                toast.success("Pago registrado exitosamente");
-            }
+            toast.success("Pago registrado exitosamente");
 
             if (autoPrint) {
                 reactToPrintFn();
@@ -782,13 +786,15 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
                 </div>
             )}
 
-            {/* Contenedor invisible para impresión física/PDF */}
+            {/* Contenedor invisible para impresión física/PDF utilizando la versión enriquecida printableInvoice */}
             <div className="hidden">
                 <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    {isA4Mode ? (
-                        <MedicalInvoice invoice={invoice} />
-                    ) : (
-                        <InvoiceComponent invoice={invoice} />
+                    {printableInvoice && (
+                        isA4Mode ? (
+                            <MedicalInvoice invoice={printableInvoice} />
+                        ) : (
+                            <InvoiceComponent invoice={printableInvoice} />
+                        )
                     )}
                 </div>
             </div>
