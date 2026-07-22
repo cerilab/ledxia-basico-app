@@ -1,41 +1,3 @@
-import React from 'react';
-import type { Invoice } from "@/lib/types";
-
-interface MedicalInvoiceProps {
-    invoice: Invoice | null;
-}
-
-const colorThemes = {
-    emerald: {
-        bg: "bg-emerald-700",
-        text: "text-emerald-800",
-        border: "border-emerald-700",
-        textLight: "text-emerald-600",
-        badge: "bg-emerald-700"
-    },
-    purple: {
-        bg: "bg-purple-700",
-        text: "text-purple-800",
-        border: "border-purple-700",
-        textLight: "text-purple-600",
-        badge: "bg-purple-700"
-    },
-    blue: {
-        bg: "bg-blue-700",
-        text: "text-blue-800",
-        border: "border-blue-700",
-        textLight: "text-blue-600",
-        badge: "bg-blue-700"
-    },
-    red: {
-        bg: "bg-red-700",
-        text: "text-red-800",
-        border: "border-red-700",
-        textLight: "text-red-600",
-        badge: "bg-red-700"
-    }
-};
-
 export default function MedicalInvoice({ invoice }: MedicalInvoiceProps) {
     if (!invoice) {
         return (
@@ -44,7 +6,6 @@ export default function MedicalInvoice({ invoice }: MedicalInvoiceProps) {
             </div>
         );
     }
-
 
     let theme = colorThemes.emerald; // Default
 
@@ -60,10 +21,9 @@ export default function MedicalInvoice({ invoice }: MedicalInvoiceProps) {
     const totalAmount = invoice.total || 0;
     const subtotalAmount = invoice.subtotal || 0;
 
-    const amountTendered =  invoice.paidAmount || 0;
-    const changeGiven = amountTendered > (invoice.paidAmount || 0)
-        ? amountTendered - (invoice.paidAmount || 0)
-        : 0;
+    // ACEPTAR VALORES INYECTADOS O LEER DEL OBJETO
+    const amountTendered = (invoice as any).amountTendered ?? invoice.paidAmount ?? 0;
+    const changeGiven = (invoice as any).changeGiven ?? (amountTendered > totalAmount ? amountTendered - totalAmount : 0);
 
     return (
         <div className="min-h-screen bg-gray-100 p-4 sm:p-8 print:bg-white print:p-0">
