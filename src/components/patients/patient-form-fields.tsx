@@ -268,35 +268,6 @@ export function PatientFormFields({
               />
             </FieldGroup>
           </div>
-
-          <div>
-            <Label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Categoría / Tipo de Atención
-            </Label>
-            <div className="flex gap-2">
-              {(
-                  [
-                    ["ambulatory", "Ambulatorio"],
-                    ["hospitalized", "Hospitalizado"],
-                    ["emergency", "Emergencia"],
-                  ] as const
-              ).map(([value, label]) => (
-                  <button
-                      key={value}
-                      type="button"
-                      onClick={() => set("patientCategory", value)}
-                      className={cn(
-                          "h-8 flex-1 rounded-lg border px-2 text-[13px] font-medium transition-colors",
-                          form.patientCategory === value
-                              ? "border-[color:var(--brand-primary,#00A99D)] bg-[color:var(--brand-primary,#00A99D)] text-white"
-                              : "border-input bg-background text-muted-foreground hover:bg-accent",
-                      )}
-                  >
-                    {label}
-                  </button>
-              ))}
-            </div>
-          </div>
         </section>
 
         {/* SECTION 3: PAGO CORPORATIVO / PATROCINIO EMPRESARIAL */}
@@ -482,61 +453,93 @@ export function PatientFormFields({
         {/* SECTION 7: SEGURO MÉDICO Y ARS */}
         <section className="space-y-3">
           <SectionTitle icon={ShieldPlus}>Seguro Médico / ARS</SectionTitle>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <FieldGroup label="Aseguradora / ARS">
-              <Input
-                  value={form.insuranceProvider ?? ""}
-                  onChange={(e) => set("insuranceProvider", e.target.value)}
-                  placeholder="Ej. ARS Primera, Senasa, Mapfre"
-              />
-            </FieldGroup>
-            <FieldGroup label="Tipo de Plan / Cobertura">
-              <Input
-                  value={form.insurancePlanType ?? ""}
-                  onChange={(e) => set("insurancePlanType", e.target.value)}
-                  placeholder="Ej. Complementario, Básico, Ejecutivo"
-              />
-            </FieldGroup>
-            <FieldGroup label="No. de Afiliado / Carnet">
-              <Input
-                  value={form.affiliateNumber ?? ""}
-                  onChange={(e) => set("affiliateNumber", e.target.value)}
-                  placeholder="Número impreso en el carnet"
-              />
-            </FieldGroup>
-          </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <FieldGroup label="No. de Póliza / Contrato">
-              <Input
-                  value={form.contractNumber ?? ""}
-                  onChange={(e) => set("contractNumber", e.target.value)}
-                  placeholder="Número de póliza"
-              />
-            </FieldGroup>
-            <FieldGroup label="NSS (Número de Seguridad Social)">
-              <Input
-                  value={form.nss ?? ""}
-                  onChange={(e) => set("nss", e.target.value)}
-                  placeholder="Número NSS"
-              />
-            </FieldGroup>
-            <FieldGroup label="Código de Pre-Autorización">
-              <Input
-                  value={form.authorisationCode ?? ""}
-                  onChange={(e) => set("authorisationCode", e.target.value)}
-                  placeholder="No. de autorización ARS"
-              />
-            </FieldGroup>
-          </div>
+          <div className="rounded-lg border bg-muted/10 p-3 space-y-3">
+            <button
+              type="button"
+              onClick={() => {
+                const newValue = !form.insuranceProvider;
+                // Si desmarca, se limpian o se mantiene el estado
+                if (!newValue) {
+                  set("insuranceProvider", "");
+                } else {
+                  set("insuranceProvider", "ARS "); // O un valor inicial si se prefiere
+                }
+              }}
+              className={cn(
+                "flex items-center justify-between w-full p-2.5 rounded-md border text-xs font-medium transition-all text-left",
+                Boolean(form.insuranceProvider)
+                  ? "border-primary bg-primary/5 text-primary font-semibold"
+                  : "border-input bg-background text-muted-foreground hover:bg-accent"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <ShieldPlus className={cn("h-4 w-4", form.insuranceProvider ? "text-primary" : "text-muted-foreground")} />
+                <span>¿El paciente utilizará Cobertura de Seguro Médico / ARS?</span>
+              </div>
+              <Checkbox checked={Boolean(form.insuranceProvider)} readOnly />
+            </button>
 
-          <FieldGroup label="Médico Tratante / Referidor">
-            <Input
-                value={form.attendingPhysician ?? ""}
-                onChange={(e) => set("attendingPhysician", e.target.value)}
-                placeholder="Dr. Nombre Apellido (Especialidad)"
-            />
-          </FieldGroup>
+            {Boolean(form.insuranceProvider) && (
+              <div className="space-y-3 pt-1 animate-in fade-in-50 duration-200">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <FieldGroup label="Aseguradora / ARS *">
+                    <Input
+                      value={form.insuranceProvider ?? ""}
+                      onChange={(e) => set("insuranceProvider", e.target.value)}
+                      placeholder="Ej. ARS Primera, Senasa, Mapfre"
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="Tipo de Plan / Cobertura">
+                    <Input
+                      value={form.insurancePlanType ?? ""}
+                      onChange={(e) => set("insurancePlanType", e.target.value)}
+                      placeholder="Ej. Complementario, Básico, Ejecutivo"
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="No. de Afiliado / Carnet">
+                    <Input
+                      value={form.affiliateNumber ?? ""}
+                      onChange={(e) => set("affiliateNumber", e.target.value)}
+                      placeholder="Número impreso en el carnet"
+                    />
+                  </FieldGroup>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <FieldGroup label="No. de Póliza / Contrato">
+                    <Input
+                      value={form.contractNumber ?? ""}
+                      onChange={(e) => set("contractNumber", e.target.value)}
+                      placeholder="Número de póliza"
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="NSS (Seguridad Social)">
+                    <Input
+                      value={form.nss ?? ""}
+                      onChange={(e) => set("nss", e.target.value)}
+                      placeholder="Número NSS"
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="Código de Pre-Autorización">
+                    <Input
+                      value={form.authorisationCode ?? ""}
+                      onChange={(e) => set("authorisationCode", e.target.value)}
+                      placeholder="No. de autorización ARS"
+                    />
+                  </FieldGroup>
+                </div>
+
+                <FieldGroup label="Médico Tratante / Referidor">
+                  <Input
+                    value={form.attendingPhysician ?? ""}
+                    onChange={(e) => set("attendingPhysician", e.target.value)}
+                    placeholder="Dr. Nombre Apellido (Especialidad)"
+                  />
+                </FieldGroup>
+              </div>
+            )}
+          </div>
         </section>
 
         {/* SECTION 8: ANTECEDENTES Y NOTAS CLÍNICAS */}
