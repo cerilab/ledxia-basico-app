@@ -788,16 +788,19 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
             {/* Contenedor invisible para impresión física/PDF utilizando la versión enriquecida printableInvoice */}
             <div className="hidden">
-                <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
-                    {printableInvoice && (
-                        isA4Mode ? (
-                            <MedicalInvoice invoice={printableInvoice} />
-                        ) : (
-                            <InvoiceComponent invoice={printableInvoice} />
-                        )
-                    )}
-                </div>
-            </div>
+    <div ref={contentRef} className={isA4Mode ? "print-a4-layout" : "print-ticket-layout"}>
+        {printableInvoice && (
+            isA4Mode ? (
+                <MedicalInvoice invoice={printableInvoice} />
+            ) : (
+                <InvoiceComponent 
+                    invoice={printableInvoice} 
+                    currentPaymentChange={printableInvoice.changeGiven} 
+                />
+            )
+        )}
+    </div>
+</div>
         </div>
     );
 }
