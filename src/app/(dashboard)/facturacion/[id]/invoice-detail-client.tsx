@@ -66,6 +66,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import MedicalInvoice from "@/components/invoice/pdf";
 
+export interface PrintableInvoice extends Invoice {
+    amountTendered?: number;
+    changeGiven?: number;
+}
+
 export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
 
     const { tenantId, user } = useAuth();
@@ -149,7 +154,13 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
             });
             // Update local state copy to ensure reactive UI & templates update instantly
             if (invoice) {
-                setInvoice({ ...invoice, Cedula: rnc });
+                setInvoice((prev) => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        Cedula: rnc,
+                    } as typeof prev & { Cedula: string };
+                });
             }
             toast.success("RNC/Cédula actualizado exitosamente");
         } catch (error) {
@@ -226,17 +237,28 @@ export function InvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
     // Obtener el último pago en efectivo para la factura cuando ya está registrada
     const lastCashPayment = payments.find((p) => p.method === "cash");
 
-    // Construcción de la factura formateada para impresión con montos de efectivo y devuelta
-    const printableInvoice = {
-        ...invoice,
-        amountTendered:
-            activeMethod === "cash" && parsedTendered > 0
-                ? parsedTendered
-                : (lastCashPayment?.amountTendered ?? (invoice as any).amountTendered ?? 0),
-        changeGiven:
-            activeMethod === "cash" && parsedTendered > 0
-                ? change
-                : (lastCashPayment?.changeGiven ?? (invoice as any).changeGiven ?? 0),
+// Forzamos el tipo seguro como PrintableInvoice en lugar de 'any'
+    const typedInvoice = invoice as PrintableInvoice | null;
+
+// 1. Obtención segura del monto entregado
+    const safeAmountTendered =
+        activeMethod === "cash" && parsedTendered > 0
+            ? parsedTendered
+            : (typedInvoice?.amountTendered ?? lastCashPayment?.amountTendered ?? typedInvoice?.paidAmount ?? 0);
+
+// 2. Obtención / Cálculo seguro del cambio
+    const safeChangeGiven =
+        activeMethod === "cash" && parsedTendered > 0
+            ? change
+            : (typedInvoice?.changeGiven ??
+                lastCashPayment?.changeGiven ??
+                (safeAmountTendered > (typedInvoice?.total ?? 0) ? safeAmountTendered - (typedInvoice?.total ?? 0) : 0));
+
+// 3. Objeto listo para enviar a los componentes de impresión
+    const printableInvoice: PrintableInvoice = {
+        ...invoice!,
+        amountTendered: safeAmountTendered,
+        changeGiven: safeChangeGiven,
     };
 
     function handleOpenPayForm() {
